@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>You know.</title>
+  <style>
+    :root {
+      --bg: #0e0e10;
+      --panel: #18181b;
+      --border: #2a2a30;
+      --text: #ececef;
+      --muted: #9a9aa3;
+      --accent: #e4b343;
+      --accent-text: #0e0e10;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: ui-serif, Georgia, "Times New Roman", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    main {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1.25rem;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 540px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 2.5rem 2rem;
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
+    }
+
+    h1 {
+      font-size: 2.75rem;
+      letter-spacing: -0.02em;
+      margin: 0 0 0.4rem;
+      font-weight: 600;
+    }
+
+    .sub {
+      color: var(--muted);
+      font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+      font-size: 0.95rem;
+      margin: 0 0 2rem;
+      line-height: 1.5;
+    }
+
+    fieldset {
+      border: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .option {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.85rem;
+      padding: 0.85rem 0.9rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 0.6rem;
+      cursor: pointer;
+      transition: border-color 0.15s ease, background 0.15s ease;
+      font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+      font-size: 1rem;
+      line-height: 1.35;
+    }
+
+    .option:hover { border-color: #3d3d46; background: #1d1d22; }
+
+    .option input {
+      appearance: none;
+      -webkit-appearance: none;
+      flex: 0 0 auto;
+      width: 20px;
+      height: 20px;
+      margin: 1px 0 0;
+      border: 1.5px solid #4a4a55;
+      border-radius: 5px;
+      background: transparent;
+      cursor: pointer;
+      position: relative;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+
+    .option input:checked {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .option input:checked::after {
+      content: "";
+      position: absolute;
+      left: 6px;
+      top: 2px;
+      width: 5px;
+      height: 10px;
+      border: solid var(--accent-text);
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg);
+    }
+
+    .option input:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    button {
+      width: 100%;
+      margin-top: 1.5rem;
+      padding: 0.95rem;
+      background: var(--accent);
+      color: var(--accent-text);
+      border: none;
+      border-radius: 10px;
+      font-size: 1.05rem;
+      font-weight: 600;
+      font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+      cursor: pointer;
+      transition: opacity 0.15s ease;
+    }
+
+    button:hover { opacity: 0.9; }
+    button:disabled { opacity: 0.5; cursor: default; }
+
+    .thanks {
+      text-align: center;
+      padding: 1.5rem 0 0.5rem;
+    }
+
+    .thanks h1 { margin-bottom: 0.5rem; }
+
+    .thanks p {
+      color: var(--muted);
+      font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+      font-size: 0.95rem;
+      margin: 0;
+    }
+
+    .field {
+      text-align: left;
+      margin-top: 1.25rem;
+    }
+
+    .field label {
+      display: block;
+      font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 0.4rem;
+    }
+
+    .field input[type="text"],
+    .field input[type="email"] {
+      width: 100%;
+      padding: 0.8rem 0.9rem;
+      background: #0e0e10;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 1rem;
+      font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+    }
+
+    .field input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .error {
+      color: #f08a8a;
+      font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+      font-size: 0.85rem;
+      margin: 0.75rem 0 0;
+      min-height: 1.1em;
+    }
+
+    .testify-intro {
+      color: var(--muted);
+      font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+      font-size: 0.92rem;
+      margin: 1.75rem 0 0;
+      line-height: 1.5;
+      text-align: left;
+    }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="card">
+      <form id="intake">
+        <h1>You know.</h1>
+        <p class="sub">Check anything that is true for you.</p>
+        <fieldset>
+          <label class="option"><input type="checkbox" name="opt" value="know-garrett-james-mcmanus" /> I know Garrett James McManus</label>
+          <label class="option"><input type="checkbox" name="opt" value="know-niket-naushik-desai" /> I know Niket Naushik Desai</label>
+          <label class="option"><input type="checkbox" name="opt" value="know-kathleen-h-warner" /> I know Kathleen H Warner</label>
+          <label class="option"><input type="checkbox" name="opt" value="saw-sex-tape" /> I saw your sex tape</label>
+          <label class="option"><input type="checkbox" name="opt" value="saw-other-private-data" /> I saw other private data</label>
+          <label class="option"><input type="checkbox" name="opt" value="saw-public-abuse" /> I saw the public abuse</label>
+          <label class="option"><input type="checkbox" name="opt" value="saw-how-it-changed-you" /> I saw how it changed you</label>
+          <label class="option"><input type="checkbox" name="opt" value="willing-to-testify" /> I'm willing to testify in court (privately)</label>
+          <label class="option"><input type="checkbox" name="opt" value="know-how-it-works" /> I know how it works</label>
+        </fieldset>
+        <p id="formError" class="error"></p>
+        <button id="submitBtn" type="submit">Submit</button>
+      </form>
+
+      <div id="done" class="thanks hidden">
+        <h1>Thank you.</h1>
+        <p>Your response has been recorded.</p>
+
+        <form id="contact" class="hidden">
+          <p class="testify-intro">You indicated you're willing to testify privately. Please leave your name and email so you can be reached confidentially.</p>
+          <div class="field">
+            <label for="fullName">Full name</label>
+            <input type="text" id="fullName" name="fullName" autocomplete="name" required />
+          </div>
+          <div class="field">
+            <label for="email">Email address</label>
+            <input type="email" id="email" name="email" autocomplete="email" required />
+          </div>
+          <p id="contactError" class="error"></p>
+          <button id="contactBtn" type="submit">Send</button>
+        </form>
+
+        <p id="contactDone" class="hidden" style="color: var(--muted); font-family: ui-sans-serif, system-ui, sans-serif; font-size: 0.95rem; margin-top: 1.5rem;">Your contact details have been received.</p>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    (function () {
+      var STATE_KEY = "witness-intake-state";
+
+      var form = document.getElementById("intake");
+      var done = document.getElementById("done");
+      var formError = document.getElementById("formError");
+      var submitBtn = document.getElementById("submitBtn");
+
+      var contact = document.getElementById("contact");
+      var contactError = document.getElementById("contactError");
+      var contactBtn = document.getElementById("contactBtn");
+      var contactDone = document.getElementById("contactDone");
+      var fullNameEl = document.getElementById("fullName");
+      var emailEl = document.getElementById("email");
+
+      function loadState() {
+        try {
+          return JSON.parse(localStorage.getItem(STATE_KEY)) || null;
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function saveState(state) {
+        localStorage.setItem(STATE_KEY, JSON.stringify(state));
+      }
+
+      // Reveal the Thank You screen, plus the contact step when testimony was
+      // offered but contact details haven't been captured yet.
+      function render(state) {
+        form.classList.add("hidden");
+        done.classList.remove("hidden");
+
+        if (state.willingToTestify && !state.contactDone) {
+          contact.classList.remove("hidden");
+        } else if (state.contactDone) {
+          contact.classList.add("hidden");
+          contactDone.classList.remove("hidden");
+        }
+      }
+
+      var existing = loadState();
+      if (existing && existing.submitted) {
+        render(existing);
+        return;
+      }
+
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        formError.textContent = "";
+
+        var selections = [].slice
+          .call(form.querySelectorAll('input[name="opt"]:checked'))
+          .map(function (el) { return el.value; });
+
+        if (selections.length === 0) {
+          formError.textContent = "Please select at least one option.";
+          return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Submitting…";
+
+        fetch("/api/submit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ selections: selections }),
+        })
+          .then(function (r) {
+            return r.json().then(function (data) { return { ok: r.ok, data: data }; });
+          })
+          .then(function (res) {
+            if (!res.ok) {
+              throw new Error((res.data && res.data.error) || "Submission failed");
+            }
+            var state = {
+              submitted: true,
+              id: res.data.id,
+              willingToTestify: !!res.data.willingToTestify,
+              contactDone: false,
+            };
+            saveState(state);
+            render(state);
+          })
+          .catch(function (err) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Submit";
+            formError.textContent = err.message || "Something went wrong. Please try again.";
+          });
+      });
+
+      contact.addEventListener("submit", function (e) {
+        e.preventDefault();
+        contactError.textContent = "";
+
+        var state = loadState();
+        if (!state || !state.id) {
+          contactError.textContent = "Your session expired. Please reload.";
+          return;
+        }
+
+        var fullName = fullNameEl.value.trim();
+        var email = emailEl.value.trim();
+        if (!fullName) {
+          contactError.textContent = "Please enter your full name.";
+          return;
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          contactError.textContent = "Please enter a valid email.";
+          return;
+        }
+
+        contactBtn.disabled = true;
+        contactBtn.textContent = "Sending…";
+
+        fetch("/api/contact", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: state.id, fullName: fullName, email: email }),
+        })
+          .then(function (r) {
+            return r.json().then(function (data) { return { ok: r.ok, data: data }; });
+          })
+          .then(function (res) {
+            if (!res.ok) {
+              throw new Error((res.data && res.data.error) || "Could not save details");
+            }
+            state.contactDone = true;
+            saveState(state);
+            contact.classList.add("hidden");
+            contactDone.classList.remove("hidden");
+          })
+          .catch(function (err) {
+            contactBtn.disabled = false;
+            contactBtn.textContent = "Send";
+            contactError.textContent = err.message || "Something went wrong. Please try again.";
+          });
+      });
+    })();
+  </script>
+</body>
+</html>

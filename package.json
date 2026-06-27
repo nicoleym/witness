@@ -1,0 +1,10 @@
+{
+  "name": "witness-intake",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Witness intake form",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0"
+  }
+}
