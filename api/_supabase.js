@@ -28,6 +28,7 @@ export const VALID_OPTIONS = [
   "saw-data",
   "saw-abuse",
   "saw-damages",
+  "me-too",
   "willing-to-testify",
   "know-how-it-works",
 ];

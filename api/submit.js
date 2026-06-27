@@ -18,14 +18,16 @@ export default async function handler(req, res) {
 
     const willingToTestify = clean.includes("willing-to-testify");
 
+    // One column per option (hyphens → underscores), 'YES' when checked.
+    const row = { user_agent: req.headers["user-agent"] || null };
+    for (const opt of VALID_OPTIONS) {
+      row[opt.replace(/-/g, "_")] = clean.includes(opt) ? "YES" : null;
+    }
+
     const supabase = getSupabase();
     const { data, error } = await supabase
       .from("submissions")
-      .insert({
-        selections: clean,
-        willing_to_testify: willingToTestify,
-        user_agent: req.headers["user-agent"] || null,
-      })
+      .insert(row)
       .select("id")
       .single();
 
