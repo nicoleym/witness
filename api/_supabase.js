@@ -21,13 +21,13 @@ export function getSupabase() {
 
 // The canonical list of valid checkbox option values.
 export const VALID_OPTIONS = [
-  "know-garrett-james-mcmanus",
-  "know-niket-naushik-desai",
-  "know-kathleen-h-warner",
-  "saw-sex-tape",
-  "saw-other-private-data",
-  "saw-public-abuse",
-  "saw-how-it-changed-you",
+  "know-garrett",
+  "know-niket",
+  "know-kathleen",
+  "saw-tape",
+  "saw-data",
+  "saw-abuse",
+  "saw-damages",
   "willing-to-testify",
   "know-how-it-works",
 ];
