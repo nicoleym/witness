@@ -202,12 +202,8 @@
       min-height: 120px;
     }
 
-    /* On the statement step, anchor the text field flush to the top of the
-       parent container (cancels the .thanks 1.5rem top padding). */
     #statement { margin-top: -1.5rem; }
     #statement .field { margin-top: 0; }
-    /* Push Skip down, but trim the textarea by the same amount so the
-       overall container height stays the same. */
     #statementText { min-height: 96px; }
     #skipBtn { margin-top: 2.25rem; }
 
@@ -243,7 +239,6 @@
     #recordBtn { touch-action: none; user-select: none; -webkit-user-select: none; }
     #recordBtn.recording { background: #d9534f; color: #fff; }
 
-    /* Live "Recording…" indicator: dots fade in one after another. */
     .rec-dots span {
       animation: recDot 1.2s infinite;
       opacity: 0.25;
@@ -271,12 +266,9 @@
       height: 3.25rem;
       margin: 0;
       padding: 0 1.5rem;
-      /* Fill the row so it matches the full-width primary button on the
-         step before; the play/delete circles take their share when present. */
       flex: 1 1 auto;
     }
 
-    /* While actively recording, shrink to a compact pill. */
     .btn-row #recordBtn.recording {
       flex: 0 0 auto;
       min-width: 0;
@@ -312,8 +304,6 @@
       min-height: 1.1em;
     }
 
-    /* Error shown below the card (outside the container), e.g. a failed
-       transcription. 16px gap above it, and no reserved space when empty. */
     .error.below-card {
       text-align: center;
       margin: 0;
@@ -341,6 +331,38 @@
     }
 
     .hidden { display: none !important; }
+
+    /* ---- Living moth cursor (engine: moth-cursor.js) -------------------- */
+    /* Swap the pointer for the moth only on fine, motion-allowed pointers;
+       the engine itself bails on touch / reduced-motion, leaving this inert. */
+    @media (pointer: fine) and (prefers-reduced-motion: no-preference) {
+      html.moth-cursor-active,
+      html.moth-cursor-active * { cursor: none; }
+      /* Keep an I-beam over text fields so people can see where they type. */
+      html.moth-cursor-active input,
+      html.moth-cursor-active textarea { cursor: text; }
+    }
+
+    #moth-cursor {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 675px;
+      height: 565px;
+      transform-origin: 327px 250px;
+      pointer-events: none;
+      z-index: 2147483647;
+      opacity: 0;
+      transition: opacity 0.7s ease;
+      contain: layout style size;
+    }
+    #moth-cursor.is-ready { opacity: 1; }
+    #moth-cursor.is-out { opacity: 0; }
+    #moth-cursor img {
+      position: absolute;
+      user-select: none;
+      -webkit-user-drag: none;
+    }
   </style>
 </head>
 <body>
@@ -357,7 +379,7 @@
           <label class="option"><input type="checkbox" name="opt" value="saw-abuse" /> I witnessed the public abuse</label>
           <label class="option"><input type="checkbox" name="opt" value="saw-damages" /> I witnessed how it affected you</label>
           <label class="option"><input type="checkbox" name="opt" value="know-how-it-works" /> I know how it works - technically.</label>
-          <label class="option"><input type="checkbox" name="opt" value="willing-to-testify" /> I'm willing to testify in court (privately) about the subjects mentioned above</label>
+          <label class="option"><input type="checkbox" name="opt" value="willing-to-testify" /> I'm willing to testify in court (privately) about the specific aforementioned subjects</label>
           <label class="option"><input type="checkbox" name="opt" value="me-too" /> I, or someone I know - was targeted, too</label>
         </fieldset>
         <p class="help"><em>Thank you for doing the right thing.</em></p>
@@ -443,8 +465,6 @@
         localStorage.setItem(STATE_KEY, JSON.stringify(state));
       }
 
-      // Reveal the Thank You screen, then the optional statement step, then the
-      // required name/email step, then the final message.
       function render(state) {
         form.classList.add("hidden");
         done.classList.remove("hidden");
@@ -523,9 +543,6 @@
         contact.classList.remove("hidden");
       }
 
-      // Persist the current text as the submission's single transcript row. Used
-      // as an auto-save after transcription, on Skip, and on Delete (empty text
-      // clears it). The server updates one row, so there are no duplicates.
       function saveTranscript(id, text) {
         return fetch("/api/transcription", {
           method: "POST",
@@ -542,7 +559,6 @@
         saveTranscript(st.id, statementText.value.trim()).catch(function () {});
       }
 
-      // --- Press-and-hold recording → transcribe via ElevenLabs → fill the box ---
       var mediaRecorder = null;
       var audioChunks = [];
       var audioURL = null;
@@ -575,7 +591,6 @@
             recordBtn.innerHTML =
               'Recording<span class="rec-dots"><span>.</span><span>.</span><span>.</span></span>';
             recordBtn.classList.add("recording");
-            // If the finger was released before the mic was ready, stop now.
             if (!holding) stopRecording();
           })
           .catch(function () {
@@ -606,17 +621,12 @@
       recordBtn.addEventListener("pointerleave", release);
       recordBtn.addEventListener("pointercancel", release);
 
-      // The primary button is driven purely by whether the box has text: any
-      // content (typed or transcribed) makes it a Submit button; an empty box
-      // returns it to the press-and-hold record affordance.
       statementText.addEventListener("input", function () {
         var hasText = !!statementText.value.trim();
         recordBtn.textContent = hasText ? "Submit" : "Press to record";
         recordBtn.dataset.mode = hasText ? "submit" : "record";
       });
 
-      // In its final state the primary button is a real Submit: save the
-      // transcript and advance, exactly like Skip but as the affirmative action.
       recordBtn.addEventListener("click", function () {
         if (recordBtn.dataset.mode !== "submit") return;
         var state = loadState();
@@ -642,7 +652,6 @@
 
       function sendAudio(blob) {
         recordBtn.classList.add("hidden");
-        // Show progress as inline helper text inside the (empty) field.
         statementText.placeholder = "Transcribing…";
         fetch("/api/transcribe", {
           method: "POST",
@@ -662,7 +671,6 @@
               statementText.value = statementText.value
                 ? statementText.value.trim() + " " + t
                 : t;
-              // Capture it immediately, even if they never advance.
               autoSaveTranscript();
             }
             recControls.classList.remove("hidden");
@@ -687,7 +695,6 @@
       });
 
       deleteBtn.addEventListener("click", function () {
-        // Start over: drop the recording and the transcript it produced.
         if (audioEl) audioEl.pause();
         if (audioURL) { URL.revokeObjectURL(audioURL); audioURL = null; }
         audioChunks = [];
@@ -696,7 +703,6 @@
         recordBtn.textContent = "Press to record";
         recordBtn.dataset.mode = "record";
         statementError.textContent = "";
-        // Remove the auto-saved row too, so nothing stale is left behind.
         autoSaveTranscript();
       });
 
@@ -706,7 +712,6 @@
           statementError.textContent = "Your session expired. Please reload.";
           return;
         }
-        // Sync the latest text (updates the auto-saved row) before advancing.
         saveTranscript(state.id, statementText.value.trim())
           .then(function (res) {
             if (!res.ok) {
@@ -769,5 +774,8 @@
       });
     })();
   </script>
+
+  <!-- A living Death's-head moth that replaces the pointer. -->
+  <script src="/moth-cursor.js" defer></script>
 </body>
 </html>

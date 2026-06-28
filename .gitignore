@@ -4,3 +4,9 @@ node_modules/
 .vercel
 .DS_Store
 .env*
+
+# Heavy moth source files — only moth/Deconstructed/*.png (and Image.png) are
+# needed at runtime. Keep the video/PSD originals out of the repo.
+moth/*.mov
+moth/*.mp4
+moth/*.psd

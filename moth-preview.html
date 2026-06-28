@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Moth cursor — live</title>
+<style>
+  :root{ --accent:#e4b343; }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{
+    min-height:100vh;
+    background:
+      radial-gradient(1200px 800px at 50% 30%, #16161a 0%, #0c0c0e 60%, #070708 100%);
+    color:#cfcfd6;
+    font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;
+    overflow:hidden;
+  }
+  /* Hide the native pointer so the moth IS the cursor. */
+  html.moth-cursor-active, html.moth-cursor-active *{ cursor:none; }
+  html.moth-cursor-active input, html.moth-cursor-active textarea{ cursor:text; }
+
+  #moth-cursor{
+    position:fixed; left:0; top:0; width:675px; height:565px;
+    transform-origin:327px 250px; pointer-events:none;
+    z-index:2147483647; opacity:0; transition:opacity .6s ease;
+    contain:layout style size;
+  }
+  #moth-cursor.is-ready{ opacity:1; }
+  #moth-cursor.is-out{ opacity:0; }
+  #moth-cursor img{ position:absolute; user-select:none; -webkit-user-drag:none; }
+
+  .stage{ position:relative; height:100vh; display:grid; place-items:center; text-align:center; }
+  h1{ font-family:ui-serif,Georgia,serif; font-weight:600; font-size:2.4rem; letter-spacing:-.02em; margin:0 0 .4rem; color:#ececef;}
+  p{ max-width:30rem; line-height:1.5; color:#9a9aa3; margin:.2rem auto; }
+  .targets{ position:absolute; inset:0; pointer-events:none; }
+  .dot{ position:absolute; width:14px; height:14px; border-radius:50%;
+    background:rgba(228,179,67,.18); border:1px solid rgba(228,179,67,.5);}
+  .hud{
+    position:fixed; left:14px; bottom:14px; z-index:10;
+    font:12px/1.5 ui-monospace,Menlo,monospace; color:#8a8a93;
+    background:rgba(0,0,0,.4); border:1px solid #222; border-radius:8px; padding:8px 10px;
+    min-width:170px;
+  }
+  .hud b{ color:var(--accent); font-weight:600; }
+  .bar{height:5px;background:#222;border-radius:3px;margin-top:3px;overflow:hidden;}
+  .bar i{display:block;height:100%;background:var(--accent);width:0;}
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div>
+      <h1>Move your cursor.</h1>
+      <p>Flick it fast and the wings beat to catch up. Let it rest and the moth
+         settles, breathing. It banks into turns and trails on a spring.</p>
+    </div>
+    <div class="targets" id="targets"></div>
+  </div>
+
+  <div class="hud">
+    speed <b id="hSpeed">0</b> px/s · lag <b id="hErr">0</b> px<br>
+    effort<div class="bar"><i id="hBar"></i></div>
+    roll <b id="hRoll">0</b>°
+  </div>
+
+  <script>
+    // Scatter a few faint targets to chase.
+    var t=document.getElementById('targets');
+    for(var i=0;i<6;i++){var d=document.createElement('div');d.className='dot';
+      d.style.left=(10+Math.random()*80)+'%';d.style.top=(15+Math.random()*70)+'%';t.appendChild(d);}
+    // HUD hook read by the engine.
+    window.__moth=function(speed,err,I,roll){
+      hSpeed.textContent=speed.toFixed(0);
+      hErr.textContent=err.toFixed(0);
+      hRoll.textContent=roll.toFixed(0);
+      hBar.style.width=(I*100).toFixed(0)+'%';
+    };
+  </script>
+  <script src="/moth-cursor.js"></script>
+</body>
+</html>
