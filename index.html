@@ -311,6 +311,16 @@
       min-height: 1.1em;
     }
 
+    /* Error shown below the card (outside the container), e.g. a failed
+       transcription. 16px gap above it, and no reserved space when empty. */
+    .error.below-card {
+      text-align: center;
+      margin: 0;
+      min-height: 0;
+      padding-top: 16px;
+    }
+    .error.below-card:empty { padding-top: 0; }
+
     .help {
       color: var(--muted);
       font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
@@ -361,7 +371,6 @@
           <div class="field">
             <textarea id="statementText" name="statement" rows="5" placeholder="Write what you know…"></textarea>
           </div>
-          <p id="statementError" class="error"></p>
           <div class="btn-row">
             <div id="recControls" class="rec-controls hidden">
               <button id="playBtn" type="button" class="circle-btn play" aria-label="Play recording">
@@ -392,6 +401,7 @@
         <p id="contactDone" class="hidden" style="color: var(--muted); font-family: ui-sans-serif, system-ui, sans-serif; font-size: 0.95rem; margin-top: 1.5rem;">How we use our tools matters.</p>
       </div>
     </div>
+    <p id="statementError" class="error below-card"></p>
   </main>
 
   <script>
