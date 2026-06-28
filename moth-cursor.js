@@ -70,6 +70,23 @@
   var BRAKE_TAU = 0.12, BRAKE_K = 0.0016, BRAKE_MAX = 0.22; // wing air-brake flare
   var TWITCH_CHANCE = 0.006, TWITCH_DECAY = 0.18, TWITCH_AMP = 10;
 
+  // Lilt: a perched moth never sits perfectly upright — a slow, irregular
+  // resting tilt that drifts a few degrees either way.
+  var LILT_AMP = 5.2;                 // peak resting tilt, deg
+
+  // Ambient idle gestures, played one at a time while at rest. Each is a slow
+  // pose envelope (0 -> peak -> 0) layered over whatever the wings are doing.
+  var GEST_GAP = [3.5, 8.0];          // s between ambient gestures (random)
+  // Wing-stretch: the four pieces splay in opposing directions, elongating.
+  var STRETCH_DUR = 1.6, ST_UP = 15, ST_DN = 14, ST_EXT = 0.11;
+  // Slick-back: wings sweep straight down/back, streamlined, and hold a beat.
+  var SLICK_DUR = 2.2, SL_UP = 36, SL_DN = 24, SL_SXU = 0.76, SL_SXL = 0.82;
+  // Coattails: a far narrower slick — wings hang nearly straight down and the
+  // whole moth collapses to a slim vertical column, wings trailing like tails.
+  // The right side lags the left a touch so the two tails don't drop in lockstep.
+  var COAT_DUR = 0.55, CO_UP = 95, CO_DN = 86, CO_SXU = 0.23, CO_SXL = 0.27;
+  var COAT_STAGGER = 0.12;            // fraction of progress the right side trails
+
   // ---- DOM ---------------------------------------------------------------
   var root = document.createElement("div");
   root.id = "moth-cursor";
@@ -104,6 +121,9 @@
   var phase = 0, swayPhase = 0, clapPhase = 0;
   var idleTime = 0, rest = 0, burst = 0, burstCd = 0;
   var brake = 0, prevSpeed = 0, prevSpeed2 = 0, twitch = 0, twitchDir = 1;
+  var liltClock = 0;
+  var gKind = "", gActive = false, gProg = 0, gDur = 1, gEnv = 0, gEnvR = 0, gGap = GEST_GAP[0];
+  var lastGest = "";
   var seen = false, last = 0;
 
   function fireBurst(strength) {
@@ -125,6 +145,25 @@
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
   function alpha(dt, tau) { return 1 - Math.exp(-dt / tau); }
   function lerp(a, b, t) { return a + (b - a) * t; }
+  function rand(a, b) { return a + Math.random() * (b - a); }
+
+  // Envelope shape for an ambient gesture, progress p in [0,1].
+  // Stretch is a smooth out-and-back; slick-back ramps up, holds, releases.
+  function gestureEnv(kind, p) {
+    p = p < 0 ? 0 : p > 1 ? 1 : p;
+    if (kind === "coat") {
+      // Quick & sharp: snap in, a hair of hold, snap back out.
+      if (p < 0.3) { var c = p / 0.3; return c * c * (3 - 2 * c); }
+      if (p < 0.45) return 1;
+      var e = (1 - p) / 0.55; return e * e * (3 - 2 * e);
+    }
+    if (kind === "slick") {
+      if (p < 0.22) { var u = p / 0.22; return u * u * (3 - 2 * u); }
+      if (p < 0.68) return 1;
+      var d = (1 - p) / 0.32; return d * d * (3 - 2 * d);
+    }
+    return Math.sin(Math.PI * clamp(p, 0, 1)); // stretch
+  }
 
   function frame(now) {
     requestAnimationFrame(frame);
@@ -148,6 +187,40 @@
     // Flick: a fresh surge past the threshold claps the wings.
     if (speed > FLICK_SPEED && prevSpeed <= FLICK_SPEED) fireBurst(1);
     prevSpeed = speed;
+
+    // --- Ambient idle gestures: occasional stretch / slick-back ------------
+    var settled = speed < 40 && burst <= 0;
+    if (gActive) {
+      gProg += dt / gDur;
+      if (gProg >= 1 || !settled) { gActive = false; gGap = rand(GEST_GAP[0], GEST_GAP[1]); }
+      if (gActive) {
+        var stag = gKind === "coat" ? COAT_STAGGER : 0;
+        gEnv = gestureEnv(gKind, gProg);
+        gEnvR = stag ? gestureEnv(gKind, gProg - stag) : gEnv;
+      }
+    }
+    if (!gActive) {
+      gEnv += (0 - gEnv) * alpha(dt, 0.14);          // ease the last gesture out
+      gEnvR += (0 - gEnvR) * alpha(dt, 0.14);
+      if (settled && rest > 0.4) {
+        gGap -= dt;
+        if (gGap <= 0 && gEnv < 0.02) {
+          // Cycle through every idle motion, no immediate repeats, so the
+          // whole repertoire gets shown off even without cursor input.
+          var pool = ["stretch", "slick", "coat", "clap"];
+          var pick = pool[(Math.random() * pool.length) | 0];
+          if (pick === lastGest) pick = pool[(pool.indexOf(pick) + 1) % pool.length];
+          lastGest = pick;
+          gGap = rand(GEST_GAP[0], GEST_GAP[1]);
+          if (pick === "clap") {
+            fireBurst(0.9);                            // a spontaneous flutter-clap
+          } else {
+            gActive = true; gProg = 0; gKind = pick;
+            gDur = pick === "slick" ? SLICK_DUR : pick === "coat" ? COAT_DUR : STRETCH_DUR;
+          }
+        }
+      }
+    }
 
     // --- Effort: thrust demand drives the wingbeat -------------------------
     var drive = clamp(err / ERR_REF * 0.85 + speed / SPEED_REF * 0.5, 0, 1);
@@ -175,23 +248,46 @@
     var rotAmt = WING_ROT[0] + (WING_ROT[1] - WING_ROT[0]) * I;
     var oc = 0.5 - 0.5 * Math.cos(clapPhase);
 
-    // flight targets (raise deg, compression amount) per side
-    var raiseLf = rotAmt * o, compLf = compAmt * o - brake;  // brake widens (negative comp)
+    // flight targets per side; brake widens (negative compression).
+    var raiseLf = rotAmt * o, compLf = compAmt * o - brake;
     var raiseRf = rotAmt * o2, compRf = compAmt * o2 - brake;
-    // fold + clap targets (shared L/R; clap is symmetric)
-    var raiseFold = FOLD_RAISE, compFold = FOLD_COMP;
-    var raiseClap = CLAP_RAISE + CLAP_SWING * oc;
+    var raiseClap = CLAP_RAISE + CLAP_SWING * oc;          // clap is symmetric
     var compClap = CLAP_COMP[0] + (CLAP_COMP[1] - CLAP_COMP[0]) * oc;
 
-    var raiseL = lerp(lerp(raiseLf, raiseFold, rest), raiseClap, burst);
-    var compL = lerp(lerp(compLf, compFold, rest), compClap, burst);
-    var raiseR = lerp(lerp(raiseRf, raiseFold, rest), raiseClap, burst);
-    var compR = lerp(lerp(compRf, compFold, rest), compClap, burst);
+    // Per-wing, in a "raise = tip up" convention (right side negates on emit).
+    // Base = flight blended into the folded perch by `rest`.
+    var rUL = lerp(raiseLf, FOLD_RAISE, rest), rLL = lerp(raiseLf * 0.85, FOLD_RAISE, rest);
+    var rUR = lerp(raiseRf, FOLD_RAISE, rest), rLR = lerp(raiseRf * 0.85, FOLD_RAISE, rest);
+    var xL = 1 - lerp(compLf, FOLD_COMP, rest), xR = 1 - lerp(compRf, FOLD_COMP, rest);
+    var xUL = xL, xLL = xL, xUR = xR, xLR = xR;
 
-    els.wul.style.transform = "scaleX(" + (1 - compL) + ") rotate(" + raiseL + "deg)";
-    els.wll.style.transform = "scaleX(" + (1 - compL) + ") rotate(" + raiseL * 0.85 + "deg)";
-    els.wur.style.transform = "scaleX(" + (1 - compR) + ") rotate(" + (-raiseR) + "deg)";
-    els.wlr.style.transform = "scaleX(" + (1 - compR) + ") rotate(" + (-raiseR * 0.85) + "deg)";
+    // Ambient gesture: stretch (splay) / slick-back / coattails. The left side
+    // uses gEnv, the right side gEnvR — equal except for coattails, where the
+    // right tail lags the left so they don't drop in perfect lockstep.
+    if (gEnv > 0.001 || gEnvR > 0.001) {
+      var gUp, gDn, gSxU, gSxL;
+      if (gKind === "slick") { gUp = -SL_UP; gDn = -SL_DN; gSxU = SL_SXU; gSxL = SL_SXL; }
+      else if (gKind === "coat") { gUp = -CO_UP; gDn = -CO_DN; gSxU = CO_SXU; gSxL = CO_SXL; }
+      else { gUp = ST_UP; gDn = -ST_DN; gSxU = 1 + ST_EXT; gSxL = 1 + ST_EXT; }
+      rUL = lerp(rUL, gUp, gEnv); rUR = lerp(rUR, gUp, gEnvR);
+      rLL = lerp(rLL, gDn, gEnv); rLR = lerp(rLR, gDn, gEnvR);
+      xUL = lerp(xUL, gSxU, gEnv); xUR = lerp(xUR, gSxU, gEnvR);
+      xLL = lerp(xLL, gSxL, gEnv); xLR = lerp(xLR, gSxL, gEnvR);
+    }
+
+    // Clap-flap overrides everything while it fires.
+    if (burst > 0) {
+      rUL = lerp(rUL, raiseClap, burst); rUR = lerp(rUR, raiseClap, burst);
+      rLL = lerp(rLL, raiseClap * 0.85, burst); rLR = lerp(rLR, raiseClap * 0.85, burst);
+      var xc = 1 - compClap;
+      xUL = lerp(xUL, xc, burst); xUR = lerp(xUR, xc, burst);
+      xLL = lerp(xLL, xc, burst); xLR = lerp(xLR, xc, burst);
+    }
+
+    els.wul.style.transform = "scaleX(" + xUL + ") rotate(" + rUL + "deg)";
+    els.wll.style.transform = "scaleX(" + xLL + ") rotate(" + rLL + "deg)";
+    els.wur.style.transform = "scaleX(" + xUR + ") rotate(" + (-rUR) + "deg)";
+    els.wlr.style.transform = "scaleX(" + xLR + ") rotate(" + (-rLR) + "deg)";
 
     // --- Antennae: sway + inertia, blend to lowered (fold) + clap + twitch --
     var swayAmp = ANT_SWAY[0] + (ANT_SWAY[1] - ANT_SWAY[0]) * I;
@@ -203,24 +299,37 @@
     twitch = Math.max(0, twitch - dt / TWITCH_DECAY);
     var antL = lerp(lerp(sway + antLag, FOLD_ANT, rest), -5, burst) + twitch * TWITCH_AMP * twitchDir;
     var antR = lerp(lerp(-sway * 0.8 + antLag, -FOLD_ANT, rest), 5, burst);
+    // Feelers spread on a stretch, lay back on a slick / coattails.
+    var gAntL = -7, gAntR = 7;
+    if (gKind === "slick") { gAntL = 13; gAntR = -13; }
+    else if (gKind === "coat") { gAntL = 6; gAntR = -6; }
+    antL = lerp(antL, gAntL, gEnv); antR = lerp(antR, gAntR, gEnvR);
     els.antl.style.transform = "rotate(" + antL + "deg)";
     els.antr.style.transform = "rotate(" + antR + "deg)";
 
-    // --- Body: breath, drop when folded, lift on clap ----------------------
+    // --- Body: breath, drop when folded, lift on clap, rise on stretch -----
     var bob = (BODY_BOB[0] + (BODY_BOB[1] - BODY_BOB[0]) * I) * Math.sin(swayPhase * 0.5);
-    var bodyTy = bob * (1 - rest) + FOLD_BODY * rest - 4 * oc * burst;
+    var gBody = -3;                                // stretch rises
+    if (gKind === "slick") gBody = 2;              // slick / coattails settle down
+    else if (gKind === "coat") gBody = 3;
+    var bodyTy = bob * (1 - rest) + FOLD_BODY * rest - 4 * oc * burst + gBody * gEnv;
     els.body.style.transform = "translateY(" + bodyTy + "px)";
 
-    // --- Whole-body attitude -----------------------------------------------
+    // --- Whole-body attitude: lilt + lean + bank ---------------------------
+    // A perched moth is never bolt upright — slow, irregular resting tilt.
+    liltClock += dt;
+    var lilt = Math.sin(liltClock * 0.6) * (LILT_AMP * 0.62) +
+               Math.sin(liltClock * 0.27 + 1.3) * (LILT_AMP * 0.42);
     var lean = clamp(vx * LEAN_K, -LEAN_MAX, LEAN_MAX);
     var lat = speed > 1 ? (vx * ay - vy * ax) / speed : 0;
     var bank = clamp(lat * BANK_K * 0.001, -BANK_MAX, BANK_MAX);
-    roll += ((lean + bank) * (1 - rest) - roll) * alpha(dt, 0.1);
+    roll += (lilt + (lean + bank) * (1 - rest) - roll) * alpha(dt, 0.1);
     var pitchTarget = 1 - clamp(Math.abs(vy) / 5200, 0, 0.06);
     pitch += (pitchTarget - pitch) * alpha(dt, 0.12);
 
     // --- Compose -----------------------------------------------------------
-    var s = SCALE * (1 + 0.05 * I + 0.07 * burst * oc - 0.03 * rest);
+    var gScale = gKind === "stretch" ? 0.04 * gEnv : 0; // stretch elongates a touch
+    var s = SCALE * (1 + 0.05 * I + 0.07 * burst * oc - 0.03 * rest + gScale);
     root.style.transform =
       "translate(" + (sx - SKULL_X) + "px," + (sy - SKULL_Y) + "px) scale(" +
       s + "," + (s * pitch) + ") rotate(" + roll + "deg)";
