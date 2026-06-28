@@ -84,7 +84,9 @@
 
   // Ambient idle gestures, played one at a time while at rest. Each is a slow
   // pose envelope (0 -> peak -> 0) layered over whatever the wings are doing.
-  var GEST_GAP = [3.5, 8.0];          // s between ambient gestures (random)
+  // s between ambient gestures (random). Mobile uses a shorter dwell so a
+  // resting gesture reliably plays before the moth flits to a new spot.
+  var GEST_GAP = touch ? [1.6, 3.4] : [3.5, 8.0];
   // Wing-stretch: the four pieces splay in opposing directions, elongating.
   var STRETCH_DUR = 1.6, ST_UP = 15, ST_DN = 14, ST_EXT = 0.11;
   // Slick-back: wings sweep straight down/back, streamlined, and hold a beat.
@@ -138,8 +140,26 @@
   var liltClock = 0;
   var gKind = "", gActive = false, gProg = 0, gDur = 1, gEnv = 0, gEnvR = 0, gGap = GEST_GAP[0];
   var lastGest = "";
+  // Idle gestures are drawn from a shuffle-bag, not picked at random: the whole
+  // repertoire plays once (in a fresh random order) before any of it repeats, so
+  // every move is shown off in a short window instead of clustering by luck.
+  var GESTURES = ["stretch", "slick", "coat", "clap"];
+  var gestBag = [];
   var seen = false, last = 0;
-  var engaged = false, running = false, hopTimer = 0;
+  var engaged = false, running = false, hopTimer = 0, gestSinceHop = 0;
+  // Intake step (touch): the moth never lives on that screen — each option the
+  // witness selects sends it on a single translucent fly-by arc that crosses and
+  // exits, so it's present only as a reaction to a tap, never obstructing copy.
+  // A fly-by has three phases: 0 = arc in to a corner of the card, 1 = perch
+  // there a beat (the moth settles, wings folding), 2 = scoot off and exit.
+  var flyby = false, flyBig = false, flyPhase = 0, flyT = 0, flyPerch = false;
+  var flyInDur = 0.7, perchDur = 0.7, flyOutDur = 0.6, flyOpacity = 0;
+  var ix0 = 0, iy0 = 0, icx = 0, icy = 0;     // in-arc: entry + control
+  var cnx = 0, cny = 0;                        // corner perch point
+  var ocx = 0, ocy = 0, ex1 = 0, ey1 = 0;     // out-arc: control + exit
+  var flP1 = 0, flP2 = 0, flAmp = 1;          // per-fly flutter phases + amplitude scale
+  var FLY_OPACITY = 0.62;            // clearly ephemeral — it's just passing through
+  var FLY_MARGIN = 60;               // entry/exit just off the visible edge
 
   function fireBurst(strength) {
     if (burstCd > 0) return;
@@ -214,12 +234,110 @@
       });
     }
     summon();
+
+    // --- Intake step: a fly-by per selection -------------------------------
+    // On the first screen the moth doesn't live on the page (it would compete
+    // with the witness reading sensitive options). Instead, each time an option
+    // is selected, it swoops in from below the finger, crosses, and exits up and
+    // away — translucent, never landing, gone between taps. The 2nd selection,
+    // which unlocks Submit, detours past the Submit button (a clap) on the way
+    // out, nudging the eye to the now-available action.
+    var intakeForm = document.getElementById("intake");
+    var submitBtn = document.getElementById("submitBtn");
+    var card = document.querySelector(".card");
+
+    // A swerved control point off the straight A->B line, for a curved arc.
+    function swerveCtrl(ax, ay, bx, by) {
+      var dx = bx - ax, dy = by - ay, dl = Math.hypot(dx, dy) || 1;
+      var sw = rand(0.18, 0.4) * dl * (Math.random() < 0.5 ? -1 : 1);
+      return [(ax + bx) / 2 + (-dy / dl) * sw, (ay + by) / 2 + (dx / dl) * sw];
+    }
+
+    function flyAcross(big) {
+      if (flyby) { fireBurst(1); return; }      // mid-fly already — just re-energize
+      var w = window.innerWidth, h = window.innerHeight, m = FLY_MARGIN;
+      flyBig = !!big;
+
+      var e0 = (Math.random() * 4) | 0;         // enter from a random edge
+      var p0 = flyEdge(e0, w, h, m); ix0 = p0[0]; iy0 = p0[1];
+
+      // Perch target: a corner of the card. The 2nd (unlocking) pick lands on a
+      // bottom corner near Submit; others on any corner. Clamp into view and nudge
+      // outward so the moth clings to the outside of the corner, clear of the copy.
+      var r = card ? card.getBoundingClientRect()
+                   : { left: w * 0.12, top: h * 0.2, right: w * 0.88, bottom: h * 0.8 };
+      var ccx = (r.left + r.right) / 2, ccy = (r.top + r.bottom) / 2;
+      var corners = [[r.left, r.top], [r.right, r.top], [r.left, r.bottom], [r.right, r.bottom]];
+      var c = corners[flyBig ? (2 + ((Math.random() * 2) | 0)) : (Math.random() * 4) | 0];
+      cnx = clamp(c[0] + (c[0] >= ccx ? 15 : -15), 16, w - 16);
+      cny = clamp(c[1] + (c[1] >= ccy ? 15 : -15), 16, h - 16);
+
+      var ic = swerveCtrl(ix0, iy0, cnx, cny); icx = ic[0]; icy = ic[1];
+
+      var e1 = (e0 + 1 + ((Math.random() * 3) | 0)) % 4;     // scoot off a different edge
+      var p1 = flyEdge(e1, w, h, m); ex1 = p1[0]; ey1 = p1[1];
+      var oc = swerveCtrl(cnx, cny, ex1, ey1); ocx = oc[0]; ocy = oc[1];
+
+      flyInDur = rand(0.6, 0.85); perchDur = rand(0.55, 0.95); flyOutDur = rand(0.5, 0.7);
+      flP1 = rand(0, 6.2832); flP2 = rand(0, 6.2832); flAmp = rand(0.8, 1.3);
+
+      sx = ix0; sy = iy0; vx = 0; vy = 0;
+      flyby = true; flyPhase = 0; flyT = 0; flyPerch = false; flyOpacity = 0; seen = true;
+      root.style.transition = "none";           // we drive opacity per-frame ourselves
+      root.style.opacity = "0";
+      if (!running) { running = true; last = 0; requestAnimationFrame(frame); }
+      fireBurst(1);
+    }
+
+    if (intakeForm) {
+      // Not tap-triggered — while the intake step is up, the moth drops by on its
+      // own at random intervals (a corner perch, then off again), so it reads as a
+      // creature passing through rather than a reaction to each selection.
+      var FLY_GAP = [6, 13];            // s between spontaneous visits (random)
+      function scheduleFly() {
+        setTimeout(function () {
+          if (intakeForm.classList.contains("hidden")) return; // intake over — stop the chain
+          if (!flyby) flyAcross(Math.random() < 0.3);          // occasionally perch near Submit
+          scheduleFly();
+        }, rand(FLY_GAP[0], FLY_GAP[1]) * 1000);
+      }
+      scheduleFly();
+    }
   }
 
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
   function alpha(dt, tau) { return 1 - Math.exp(-dt / tau); }
   function lerp(a, b, t) { return a + (b - a) * t; }
   function rand(a, b) { return a + Math.random() * (b - a); }
+  function bez(a, b, c, t) {                 // quadratic Bézier at t in [0,1]
+    var u = 1 - t; return u * u * a + 2 * u * t * b + t * t * c;
+  }
+  function bezD(a, b, c, t) {                // its tangent (derivative) at t
+    return 2 * (1 - t) * (b - a) + 2 * t * (c - b);
+  }
+  // A point just beyond a given screen edge (0 top, 1 right, 2 bottom, 3 left).
+  function flyEdge(edge, w, h, m) {
+    switch (edge) {
+      case 0:  return [rand(w * 0.15, w * 0.85), -m];
+      case 1:  return [w + m, rand(h * 0.15, h * 0.85)];
+      case 2:  return [rand(w * 0.15, w * 0.85), h + m];
+      default: return [-m, rand(h * 0.15, h * 0.85)];
+    }
+  }
+
+  // Next idle gesture from the shuffle-bag: refill + shuffle when empty, and
+  // never let a bag start on the move the last one ended with.
+  function nextGesture() {
+    if (gestBag.length === 0) {
+      gestBag = GESTURES.slice();
+      for (var i = gestBag.length - 1; i > 0; i--) {     // Fisher–Yates
+        var j = (Math.random() * (i + 1)) | 0;
+        var tmp = gestBag[i]; gestBag[i] = gestBag[j]; gestBag[j] = tmp;
+      }
+      if (gestBag[0] === lastGest && gestBag.length > 1) gestBag.push(gestBag.shift());
+    }
+    return gestBag.shift();
+  }
 
   // Envelope shape for an ambient gesture, progress p in [0,1].
   // Stretch is a smooth out-and-back; slick-back ramps up, holds, releases.
@@ -245,16 +363,68 @@
     var dt = Math.min(0.04, (now - last) / 1000);
     last = now;
 
-    // --- Spring-damper flight ----------------------------------------------
-    var ex = px - sx, ey = py - sy;
-    var ax = ex * K - vx * C, ay = ey * K - vy * C;
-    vx += ax * dt; vy += ay * dt; sx += vx * dt; sy += vy * dt;
-    var speed = Math.hypot(vx, vy), err = Math.hypot(ex, ey);
+    // --- Position: spring chase, or a scripted fly-by arc ------------------
+    var ex = 0, ey = 0, ax = 0, ay = 0, speed, err;
+    if (flyby) {
+      flyT += dt;
+      if (flyPhase === 1) {
+        // --- Perch: alight on the card corner and pause a beat --------------
+        // Pinned in place; flyPerch drives the existing fold pose (wings
+        // compress & drop, antennae lower, body settles) so it reads as a land.
+        sx = cnx; sy = cny; vx = 0; vy = 0;
+        speed = 0; err = 0; flyPerch = true;
+        flyOpacity += (0.82 - flyOpacity) * alpha(dt, 0.12);  // a touch more solid, landed
+        root.style.opacity = flyOpacity.toFixed(3);
+        if (flyT >= perchDur) { flyPhase = 2; flyT = 0; flyPerch = false; fireBurst(0.95); }
+      } else {
+        // --- In / Out: a fluttery Bézier arc -------------------------------
+        flyPerch = false;
+        var inSeg = flyPhase === 0;
+        var qa = inSeg ? ix0 : cnx, qb = inSeg ? iy0 : cny;   // segment start
+        var qc = inSeg ? icx : ocx, qd = inSeg ? icy : ocy;   // control
+        var qe = inSeg ? cnx : ex1, qf = inSeg ? cny : ey1;   // segment end
+        var dur = inSeg ? flyInDur : flyOutDur;
+        var fp = flyT / dur; if (fp > 1) fp = 1;
+        var fe = fp * fp * (3 - 2 * fp);              // smoothstep ease along the arc
+        fe += 0.02 * Math.sin(6.2832 * 1.4 * flyT + flP1);   // mild pace surge (not mechanical)
+        if (fe < 0) fe = 0; else if (fe > 1) fe = 1;
+        var bx = bez(qa, qc, qe, fe), by = bez(qb, qd, qf, fe);
+        // Erratic flutter perpendicular to travel, tapered to nothing at the
+        // ends — two incommensurate sines give the irregular jink of a moth.
+        var tx = bezD(qa, qc, qe, fe), ty = bezD(qb, qd, qf, fe);
+        var tl = Math.hypot(tx, ty) || 1;
+        var win = Math.sin(Math.PI * fp);
+        var flut = win * flAmp * (24 * Math.sin(6.2832 * 2.6 * flyT + flP1) +
+                                  11 * Math.sin(6.2832 * 4.3 * flyT + flP2));
+        var nx = bx + (-ty / tl) * flut, ny = by + (tx / tl) * flut;
+        vx = (nx - sx) / dt; vy = (ny - sy) / dt;     // path velocity → wingbeat & lean
+        sx = nx; sy = ny;
+        speed = Math.hypot(vx, vy); err = 0;
+        idleTime = 0;                                  // mid-flight never perches
+        var target = inSeg ? FLY_OPACITY : (fp > 0.6 ? 0 : FLY_OPACITY);  // dissolve as it leaves
+        flyOpacity += (target - flyOpacity) * alpha(dt, 0.16);
+        root.style.opacity = flyOpacity.toFixed(3);
+        if (fp >= 1) {
+          if (inSeg) { flyPhase = 1; flyT = 0; }       // reached the corner → perch
+          else {                                       // scoot complete — vanish
+            flyby = false; flyBig = false; flyPerch = false;
+            root.style.opacity = ""; root.style.transition = "";
+            if (!engaged) running = false;             // stop the loop unless roam is active
+            return;
+          }
+        }
+      }
+    } else {
+      ex = px - sx; ey = py - sy;
+      ax = ex * K - vx * C; ay = ey * K - vy * C;
+      vx += ax * dt; vy += ay * dt; sx += vx * dt; sy += vy * dt;
+      speed = Math.hypot(vx, vy); err = Math.hypot(ex, ey);
+    }
 
     // --- Timers: idle -> perch, burst decay --------------------------------
     idleTime += dt;
     if (burstCd > 0) burstCd -= dt;
-    var restTarget = idleTime > REST_DELAY && speed < 40 ? 1 : 0;
+    var restTarget = (idleTime > REST_DELAY && speed < 40) || flyPerch ? 1 : 0;
     rest += (restTarget - rest) *
             alpha(dt, restTarget > rest ? REST_IN_TAU : REST_OUT_TAU);
     if (burst > 0) burst = Math.max(0, burst - dt / BURST_DUR);
@@ -266,11 +436,16 @@
     var settled = speed < 40 && burst <= 0;
 
     // --- Mobile: roam freely — flit to a new random spot after each perch ---
+    // It only relocates once it has shown at least one resting gesture here, and
+    // never mid-gesture, so the whole repertoire gets seen between hops (instead
+    // of the hop always winning the race and cutting every gesture short).
     if (touch && engaged && settled && rest > 0.4) {
       hopTimer -= dt;
-      if (hopTimer <= 0) {
+      if (hopTimer <= 0 && gestSinceHop > 0 && !gActive && gEnv < 0.02 && gEnvR < 0.02) {
         randTarget(); fireBurst(0.9);            // clap-and-fling to a new spot
         hopTimer = rand(HOP_GAP[0], HOP_GAP[1]);
+        gGap = rand(GEST_GAP[0], GEST_GAP[1]);   // fresh dwell at the new spot
+        gestSinceHop = 0;
       }
     }
 
@@ -286,15 +461,14 @@
     if (!gActive) {
       gEnv += (0 - gEnv) * alpha(dt, 0.14);          // ease the last gesture out
       gEnvR += (0 - gEnvR) * alpha(dt, 0.14);
-      if (settled && rest > 0.4) {
+      if (settled && rest > 0.4 && !flyby) {        // no ambient gestures during a fly-by perch
         gGap -= dt;
         if (gGap <= 0 && gEnv < 0.02) {
-          // Cycle through every idle motion, no immediate repeats, so the
-          // whole repertoire gets shown off even without cursor input.
-          var pool = ["stretch", "slick", "coat", "clap"];
-          var pick = pool[(Math.random() * pool.length) | 0];
-          if (pick === lastGest) pick = pool[(pool.indexOf(pick) + 1) % pool.length];
+          // Draw the next idle motion from the shuffle-bag so the whole
+          // repertoire cycles through, even without cursor input.
+          var pick = nextGesture();
           lastGest = pick;
+          gestSinceHop++;                            // a gesture has played here
           gGap = rand(GEST_GAP[0], GEST_GAP[1]);
           if (pick === "clap") {
             fireBurst(0.9);                            // a spontaneous flutter-clap
