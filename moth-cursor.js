@@ -2,26 +2,25 @@
    Moth cursor — a living Death's-head moth that replaces the pointer.
 
    GEOMETRY is reconstructed from the deconstructed artwork pieces, fitted to
-   moth/Image.png (the "ideal" pose) at ~94% pixel similarity. The 7 pieces are
-   placed in their canonical 675x565 frame; each wing/antenna pivots about the
-   point where it meets the body.
+   moth/Image.png (the "ideal" pose) at ~94% pixel similarity. The 7 pieces sit
+   in their canonical 675x565 frame; each wing/antenna pivots about the point
+   where it meets the body.
 
    MOTION is grounded in flight physics & insect biology, modelled on
-   moth/Moth.mp4:
-     • The skull is a point MASS on a damped spring anchored to the real pointer
-       — so it carries momentum, feels drag, and settles with a soft, slightly
-       underdamped overshoot when you stop (deceleration of a real flyer).
-     • A moth beats its wings harder to generate THRUST when it must accelerate
-       or catch up — so wingbeat frequency & amplitude track how hard it is
-       working (how far it lags its target), not merely how fast it goes. Chasing
-       a flung cursor = a furious blur; caught up and gliding = slow respiration.
-     • The wingbeat itself reads as horizontal FORESHORTENING (scaleX) about each
-       wing's hinge plus a small rotation — the geometry of a wing rotating up
-       toward the viewer.
-     • It BANKS into turns: rolls toward the centripetal side of a turn (lateral
-       acceleration) and leans into horizontal travel, the way flying animals do.
-     • Antennae and the trailing wing LAG under inertia; nothing is ever perfectly
-       periodic. Attenborough x Nat Geo x a little computer magic.
+   moth/Moth.mp4. The skull rides a damped spring anchored to the real pointer
+   (momentum, drag, a soft settle). The wingbeat is horizontal FORESHORTENING
+   (scaleX) about each hinge plus a small rotation, and its effort tracks THRUST
+   demand — how hard the moth is working to catch the cursor — not raw speed.
+
+   BEHAVIOUR REPERTOIRE (each gesture has a cursor trigger and a real biomechanic):
+     • flight     — moving: effort-driven wingbeat, banks into turns.
+     • fold/perch — idle a beat: wings compress edge-on and drop, tucking into a
+                    sliver; antennae lower; it lands and breathes.
+     • clap-flap  — flick / mousedown / takeoff: wings snap upright over the back
+                    and clap rapidly (the clap-and-fling lift mechanism), then ease.
+     • brake      — hard deceleration: wings flare wide & forward to air-brake.
+     • twitch     — perched: occasional asymmetric antenna flick (sensing the air).
+   Attenborough x Nat Geo x a little computer magic.
    ============================================================================ */
 (function () {
   "use strict";
@@ -47,26 +46,29 @@
   var SKULL_X = 327, SKULL_Y = 250;   // pointer hotspot, canvas space
   var SCALE = 0.17;                   // ~115px wide cursor
 
-  // ---- Flight model tunables ---------------------------------------------
-  // Spring-damper to the pointer. wn = natural frequency (rad/s), zeta = damping
-  // ratio (<1 => a little overshoot, the soft settle of a decelerating flyer).
-  var WN = 26, ZETA = 0.82;
+  // ---- Flight model ------------------------------------------------------
+  var WN = 26, ZETA = 0.82;           // spring natural freq / damping ratio
   var K = WN * WN, C = 2 * ZETA * WN;
+  var ERR_REF = 190, SPEED_REF = 1500;
+  var EXERT_RISE = 0.045, EXERT_FALL = 0.5, EXERT_FLOOR = 0.06;
+  var IDLE_HZ = 1.05, FAST_HZ = 9.5;
+  var WING_COMPRESS = [0.07, 0.44];   // scaleX dip, rest -> full thrust
+  var WING_ROT = [1.5, 13.0];         // deg about hinge
+  var ANT_SWAY = [2.2, 4.5], BODY_BOB = [1.2, 4.5];
+  var LEAN_K = 0.024, LEAN_MAX = 14;
+  var BANK_K = 0.9, BANK_MAX = 16;
+  var ANT_LAG_K = 0.018, ANT_LAG_MAX = 16;
 
-  var ERR_REF = 190;        // px of lag that reads as "working hard"
-  var SPEED_REF = 1500;     // px/s that reads as fast cruising
-  var EXERT_RISE = 0.045;   // effort spins up fast...
-  var EXERT_FALL = 0.5;     // ...and winds down slowly
-  var EXERT_FLOOR = 0.06;   // resting respiration — never fully still
-
-  var IDLE_HZ = 1.05, FAST_HZ = 9.5;          // wingbeat frequency, Hz
-  var WING_COMPRESS = [0.07, 0.44];           // scaleX dip, rest -> full thrust
-  var WING_ROT = [1.5, 13.0];                 // deg about hinge
-  var ANT_SWAY = [2.2, 4.5];                  // deg of feeler sway
-  var BODY_BOB = [1.2, 4.5];                  // canvas px of vertical breath
-  var LEAN_K = 0.024, LEAN_MAX = 14;          // lean into horizontal travel
-  var BANK_K = 0.9, BANK_MAX = 16;            // roll into a turn (centripetal)
-  var ANT_LAG_K = 0.018, ANT_LAG_MAX = 16;    // feeler inertia
+  // ---- Behaviour repertoire ----------------------------------------------
+  var REST_DELAY = 0.85;              // s of stillness before it perches
+  var REST_IN_TAU = 0.5, REST_OUT_TAU = 0.07;
+  var FOLD_RAISE = -8, FOLD_COMP = 0.60, FOLD_ANT = 15, FOLD_BODY = 7;
+  var CLAP_HZ = 13, BURST_DUR = 0.5;     // upright clap-flap
+  var CLAP_RAISE = 8, CLAP_SWING = 46, CLAP_COMP = [0.30, 0.60];
+  var FLICK_SPEED = 950, BURST_COOLDOWN = 0.28;
+  var TAKEOFF_REST = 0.3;
+  var BRAKE_TAU = 0.12, BRAKE_K = 0.0016, BRAKE_MAX = 0.22; // wing air-brake flare
+  var TWITCH_CHANCE = 0.006, TWITCH_DECAY = 0.18, TWITCH_AMP = 10;
 
   // ---- DOM ---------------------------------------------------------------
   var root = document.createElement("div");
@@ -96,24 +98,33 @@
   else document.addEventListener("DOMContentLoaded", mount);
 
   // ---- State -------------------------------------------------------------
-  var px = window.innerWidth / 2, py = window.innerHeight / 2; // real pointer
-  var sx = px, sy = py;        // skull position (the mass)
-  var vx = 0, vy = 0;          // skull velocity (true momentum, px/s)
-  var exertion = EXERT_FLOOR;  // 0..1 wingbeat effort
-  var roll = 0;                // current body rotation (deg)
-  var pitch = 1;               // current vertical foreshorten (scaleY)
-  var phase = 0, swayPhase = 0;
+  var px = window.innerWidth / 2, py = window.innerHeight / 2;
+  var sx = px, sy = py, vx = 0, vy = 0;
+  var exertion = EXERT_FLOOR, roll = 0, pitch = 1;
+  var phase = 0, swayPhase = 0, clapPhase = 0;
+  var idleTime = 0, rest = 0, burst = 0, burstCd = 0;
+  var brake = 0, prevSpeed = 0, prevSpeed2 = 0, twitch = 0, twitchDir = 1;
   var seen = false, last = 0;
+
+  function fireBurst(strength) {
+    if (burstCd > 0) return;
+    burst = Math.max(burst, strength);
+    burstCd = BURST_COOLDOWN;
+  }
 
   window.addEventListener("pointermove", function (e) {
     px = e.clientX; py = e.clientY;
     if (!seen) { seen = true; sx = px; sy = py; }
+    if (rest > TAKEOFF_REST) fireBurst(1);   // wake & take off with a clap
+    idleTime = 0;
   }, { passive: true });
+  window.addEventListener("pointerdown", function () { fireBurst(0.85); }, { passive: true });
   window.addEventListener("pointerleave", function () { root.classList.add("is-out"); });
   window.addEventListener("pointerenter", function () { root.classList.remove("is-out"); });
 
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
   function alpha(dt, tau) { return 1 - Math.exp(-dt / tau); }
+  function lerp(a, b, t) { return a + (b - a) * t; }
 
   function frame(now) {
     requestAnimationFrame(frame);
@@ -121,74 +132,105 @@
     var dt = Math.min(0.04, (now - last) / 1000);
     last = now;
 
-    // --- Spring-damper flight: F = -K*x - C*v, integrated as a point mass ---
-    var ex = px - sx, ey = py - sy;          // displacement error (lag)
-    var ax = ex * K - vx * C;                // acceleration = thrust + drag
-    var ay = ey * K - vy * C;
-    vx += ax * dt; vy += ay * dt;
-    sx += vx * dt; sy += vy * dt;
+    // --- Spring-damper flight ----------------------------------------------
+    var ex = px - sx, ey = py - sy;
+    var ax = ex * K - vx * C, ay = ey * K - vy * C;
+    vx += ax * dt; vy += ay * dt; sx += vx * dt; sy += vy * dt;
+    var speed = Math.hypot(vx, vy), err = Math.hypot(ex, ey);
 
-    var speed = Math.hypot(vx, vy);
-    var err = Math.hypot(ex, ey);
+    // --- Timers: idle -> perch, burst decay --------------------------------
+    idleTime += dt;
+    if (burstCd > 0) burstCd -= dt;
+    var restTarget = idleTime > REST_DELAY && speed < 40 ? 1 : 0;
+    rest += (restTarget - rest) *
+            alpha(dt, restTarget > rest ? REST_IN_TAU : REST_OUT_TAU);
+    if (burst > 0) burst = Math.max(0, burst - dt / BURST_DUR);
+    // Flick: a fresh surge past the threshold claps the wings.
+    if (speed > FLICK_SPEED && prevSpeed <= FLICK_SPEED) fireBurst(1);
+    prevSpeed = speed;
 
-    // --- Effort: thrust demand drives the wingbeat (biology, not just speed) -
+    // --- Effort: thrust demand drives the wingbeat -------------------------
     var drive = clamp(err / ERR_REF * 0.85 + speed / SPEED_REF * 0.5, 0, 1);
     exertion += (Math.max(EXERT_FLOOR, drive) - exertion) *
                 alpha(dt, drive > exertion ? EXERT_RISE : EXERT_FALL);
-    var I = exertion;
+    var I = exertion * (1 - rest);   // a perched moth isn't exerting
 
-    // --- Phases. Frequency rises with effort; layered sines avoid a metronome.
+    // --- Air-brake: wings flare when decelerating hard ---------------------
+    var decel = (prevSpeed2 - speed) / dt;       // px/s^2 of slowing
+    var brakeTarget = clamp(decel * BRAKE_K, 0, BRAKE_MAX) * (1 - rest);
+    brake += (brakeTarget - brake) * alpha(dt, BRAKE_TAU);
+    prevSpeed2 = speed;
+
+    // --- Phases ------------------------------------------------------------
     var hz = IDLE_HZ + (FAST_HZ - IDLE_HZ) * I;
     phase += 2 * Math.PI * hz * dt;
     swayPhase += 2 * Math.PI * (0.45 + 0.5 * I) * dt;
+    if (burst > 0) clapPhase += 2 * Math.PI * CLAP_HZ * dt; else clapPhase = 0;
     var wob = Math.sin(swayPhase * 0.37) * 0.12 + Math.sin(swayPhase * 0.91) * 0.06;
 
-    // --- Wingbeat: foreshortening (scaleX) + hinge rotation -----------------
+    // --- Wing pose: blend flight -> fold(rest) -> clap(burst), + brake -----
     var o = (0.5 - 0.5 * Math.cos(phase)) * (0.93 + wob);
-    var o2 = (0.5 - 0.5 * Math.cos(phase - 0.18)) * (0.93 + wob); // right lags left
-    var compress = WING_COMPRESS[0] + (WING_COMPRESS[1] - WING_COMPRESS[0]) * I;
-    var rot = WING_ROT[0] + (WING_ROT[1] - WING_ROT[0]) * I;
-    var sxwL = 1 - compress * o, rotL = rot * o;
-    var sxwR = 1 - compress * o2, rotR = -rot * o2;
-    els.wul.style.transform = "scaleX(" + sxwL + ") rotate(" + rotL + "deg)";
-    els.wll.style.transform = "scaleX(" + sxwL + ") rotate(" + rotL * 0.85 + "deg)";
-    els.wur.style.transform = "scaleX(" + sxwR + ") rotate(" + rotR + "deg)";
-    els.wlr.style.transform = "scaleX(" + sxwR + ") rotate(" + rotR * 0.85 + "deg)";
+    var o2 = (0.5 - 0.5 * Math.cos(phase - 0.18)) * (0.93 + wob); // right lags
+    var compAmt = WING_COMPRESS[0] + (WING_COMPRESS[1] - WING_COMPRESS[0]) * I;
+    var rotAmt = WING_ROT[0] + (WING_ROT[1] - WING_ROT[0]) * I;
+    var oc = 0.5 - 0.5 * Math.cos(clapPhase);
 
-    // --- Antennae: sway + inertial drag opposite to travel ------------------
+    // flight targets (raise deg, compression amount) per side
+    var raiseLf = rotAmt * o, compLf = compAmt * o - brake;  // brake widens (negative comp)
+    var raiseRf = rotAmt * o2, compRf = compAmt * o2 - brake;
+    // fold + clap targets (shared L/R; clap is symmetric)
+    var raiseFold = FOLD_RAISE, compFold = FOLD_COMP;
+    var raiseClap = CLAP_RAISE + CLAP_SWING * oc;
+    var compClap = CLAP_COMP[0] + (CLAP_COMP[1] - CLAP_COMP[0]) * oc;
+
+    var raiseL = lerp(lerp(raiseLf, raiseFold, rest), raiseClap, burst);
+    var compL = lerp(lerp(compLf, compFold, rest), compClap, burst);
+    var raiseR = lerp(lerp(raiseRf, raiseFold, rest), raiseClap, burst);
+    var compR = lerp(lerp(compRf, compFold, rest), compClap, burst);
+
+    els.wul.style.transform = "scaleX(" + (1 - compL) + ") rotate(" + raiseL + "deg)";
+    els.wll.style.transform = "scaleX(" + (1 - compL) + ") rotate(" + raiseL * 0.85 + "deg)";
+    els.wur.style.transform = "scaleX(" + (1 - compR) + ") rotate(" + (-raiseR) + "deg)";
+    els.wlr.style.transform = "scaleX(" + (1 - compR) + ") rotate(" + (-raiseR * 0.85) + "deg)";
+
+    // --- Antennae: sway + inertia, blend to lowered (fold) + clap + twitch --
     var swayAmp = ANT_SWAY[0] + (ANT_SWAY[1] - ANT_SWAY[0]) * I;
     var sway = Math.sin(swayPhase * 0.5) * swayAmp;
     var antLag = clamp(-vx * ANT_LAG_K, -ANT_LAG_MAX, ANT_LAG_MAX);
-    els.antl.style.transform = "rotate(" + (sway + antLag) + "deg)";
-    els.antr.style.transform = "rotate(" + (-sway * 0.8 + antLag) + "deg)";
+    if (rest > 0.5 && Math.random() < TWITCH_CHANCE) {
+      twitch = 1; twitchDir = Math.random() < 0.5 ? -1 : 1;
+    }
+    twitch = Math.max(0, twitch - dt / TWITCH_DECAY);
+    var antL = lerp(lerp(sway + antLag, FOLD_ANT, rest), -5, burst) + twitch * TWITCH_AMP * twitchDir;
+    var antR = lerp(lerp(-sway * 0.8 + antLag, -FOLD_ANT, rest), 5, burst);
+    els.antl.style.transform = "rotate(" + antL + "deg)";
+    els.antr.style.transform = "rotate(" + antR + "deg)";
 
-    // --- Body: slow vertical breath -----------------------------------------
-    var bob = (BODY_BOB[0] + (BODY_BOB[1] - BODY_BOB[0]) * I) *
-              Math.sin(swayPhase * 0.5);
-    els.body.style.transform = "translateY(" + bob + "px)";
+    // --- Body: breath, drop when folded, lift on clap ----------------------
+    var bob = (BODY_BOB[0] + (BODY_BOB[1] - BODY_BOB[0]) * I) * Math.sin(swayPhase * 0.5);
+    var bodyTy = bob * (1 - rest) + FOLD_BODY * rest - 4 * oc * burst;
+    els.body.style.transform = "translateY(" + bodyTy + "px)";
 
-    // --- Whole-body attitude: lean into travel + bank into the turn ---------
+    // --- Whole-body attitude -----------------------------------------------
     var lean = clamp(vx * LEAN_K, -LEAN_MAX, LEAN_MAX);
-    // Signed lateral (centripetal) acceleration: cross(v, a) / |v|.
     var lat = speed > 1 ? (vx * ay - vy * ax) / speed : 0;
     var bank = clamp(lat * BANK_K * 0.001, -BANK_MAX, BANK_MAX);
-    roll += ((lean + bank) - roll) * alpha(dt, 0.1);
-    // Subtle pitch: climbing/diving foreshortens the body vertically.
+    roll += ((lean + bank) * (1 - rest) - roll) * alpha(dt, 0.1);
     var pitchTarget = 1 - clamp(Math.abs(vy) / 5200, 0, 0.06);
     pitch += (pitchTarget - pitch) * alpha(dt, 0.12);
 
-    // --- Compose: position skull on pointer, scale, roll, lift, aura --------
-    var s = SCALE * (1 + 0.05 * I);
+    // --- Compose -----------------------------------------------------------
+    var s = SCALE * (1 + 0.05 * I + 0.07 * burst * oc - 0.03 * rest);
     root.style.transform =
       "translate(" + (sx - SKULL_X) + "px," + (sy - SKULL_Y) + "px) scale(" +
       s + "," + (s * pitch) + ") rotate(" + roll + "deg)";
+    var glow = Math.max(I, burst * 0.6);
     root.style.filter =
       "drop-shadow(0 " + (3 + 5 * I).toFixed(1) + "px " + (6 + 8 * I).toFixed(1) +
-      "px rgba(0,0,0,0.45)) drop-shadow(0 0 " + (11 * I).toFixed(1) +
-      "px rgba(228,179,67," + (0.22 * I).toFixed(3) + "))";
+      "px rgba(0,0,0,0.45)) drop-shadow(0 0 " + (11 * glow).toFixed(1) +
+      "px rgba(228,179,67," + (0.22 * glow).toFixed(3) + "))";
 
-    // Expose for the preview HUD (no-op on the live site).
-    if (window.__moth) window.__moth(speed, err, I, roll);
+    if (window.__moth) window.__moth(speed, err, I, roll, { rest: rest, burst: burst, brake: brake });
   }
   requestAnimationFrame(frame);
 })();
