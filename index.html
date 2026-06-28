@@ -242,11 +242,19 @@
     #recordBtn { touch-action: none; user-select: none; -webkit-user-select: none; }
     #recordBtn.recording { background: #d9534f; color: #fff; }
 
-    .rec-status {
-      color: var(--accent);
-      font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
-      font-size: 0.9rem;
-      margin: 0.75rem 0 0;
+    /* Live "Recording…" indicator: dots fade in one after another. */
+    .rec-dots span {
+      animation: recDot 1.2s infinite;
+      opacity: 0.25;
+    }
+    .rec-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .rec-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes recDot {
+      0%, 70%, 100% { opacity: 0.25; }
+      35% { opacity: 1; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .rec-dots span { animation: none; opacity: 1; }
     }
 
     .btn-row {
@@ -353,7 +361,6 @@
           <div class="field">
             <textarea id="statementText" name="statement" rows="5" placeholder="Write what you know…"></textarea>
           </div>
-          <p id="recStatus" class="rec-status hidden"></p>
           <p id="statementError" class="error"></p>
           <div class="btn-row">
             <div id="recControls" class="rec-controls hidden">
@@ -401,7 +408,6 @@
       var statementText = document.getElementById("statementText");
       var statementError = document.getElementById("statementError");
       var recordBtn = document.getElementById("recordBtn");
-      var recStatus = document.getElementById("recStatus");
       var recControls = document.getElementById("recControls");
       var playBtn = document.getElementById("playBtn");
       var deleteBtn = document.getElementById("deleteBtn");
@@ -555,7 +561,8 @@
               sendAudio(blob);
             });
             mediaRecorder.start();
-            recordBtn.textContent = "Recording";
+            recordBtn.innerHTML =
+              'Recording<span class="rec-dots"><span>.</span><span>.</span><span>.</span></span>';
             recordBtn.classList.add("recording");
             // If the finger was released before the mic was ready, stop now.
             if (!holding) stopRecording();
@@ -624,8 +631,8 @@
 
       function sendAudio(blob) {
         recordBtn.classList.add("hidden");
-        recStatus.classList.remove("hidden");
-        recStatus.textContent = "Transcribing…";
+        // Show progress as inline helper text inside the (empty) field.
+        statementText.placeholder = "Transcribing…";
         fetch("/api/transcribe", {
           method: "POST",
           headers: { "Content-Type": blob.type || "audio/webm" },
@@ -635,7 +642,7 @@
             return r.json().then(function (data) { return { ok: r.ok, data: data }; });
           })
           .then(function (res) {
-            recStatus.classList.add("hidden");
+            statementText.placeholder = "Write what you know…";
             if (!res.ok) {
               throw new Error((res.data && res.data.error) || "Could not transcribe audio");
             }
@@ -653,7 +660,7 @@
             recordBtn.classList.remove("hidden");
           })
           .catch(function (err) {
-            recStatus.classList.add("hidden");
+            statementText.placeholder = "Write what you know…";
             statementError.textContent = err.message || "Could not transcribe audio.";
             recordBtn.textContent = "Press to record";
             recordBtn.dataset.mode = "record";
