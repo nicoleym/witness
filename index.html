@@ -180,10 +180,72 @@
       font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
     }
 
-    .field input:focus {
+    .field input:focus,
+    .field textarea:focus {
       outline: none;
       border-color: var(--accent);
     }
+
+    .field textarea {
+      width: 100%;
+      padding: 0.8rem 0.9rem;
+      background: #0e0e10;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 1rem;
+      font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+      resize: vertical;
+      min-height: 120px;
+    }
+
+    .mic-btn {
+      width: auto;
+      margin: 0.6rem 0 0;
+      padding: 0.5rem 0.9rem;
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    .mic-btn:hover { border-color: var(--accent); opacity: 1; }
+    .mic-btn:disabled { opacity: 0.6; }
+
+    .link-btn {
+      width: auto;
+      display: block;
+      margin: 0.75rem auto 0;
+      padding: 0.4rem 0.6rem;
+      background: none;
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 400;
+      text-decoration: underline;
+    }
+
+    .link-btn:hover { opacity: 1; color: var(--text); }
+
+    #recordBtn { touch-action: none; user-select: none; -webkit-user-select: none; }
+    #recordBtn.recording { background: #d9534f; color: #fff; }
+
+    .rec-status {
+      color: var(--accent);
+      font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+      font-size: 0.9rem;
+      margin: 0.75rem 0 0;
+    }
+
+    .rec-controls {
+      display: flex;
+      gap: 0.6rem;
+      justify-content: center;
+      margin-top: 0.9rem;
+    }
+
+    .rec-controls .mic-btn { margin: 0; }
 
     .error {
       color: #f08a8a;
@@ -209,18 +271,18 @@
   <main>
     <div class="card">
       <form id="intake">
-        <h1 class="intake-title"><em>This</em> is community.</h1>
+        <h1 class="intake-title">This <em>is </em>community.</h1>
         <fieldset>
           <label class="option"><input type="checkbox" name="opt" value="know-garrett" /> I know Garrett James McManus</label>
           <label class="option"><input type="checkbox" name="opt" value="know-niket" /> I know Niket Naushik Desai</label>
-          <label class="option"><input type="checkbox" name="opt" value="know-kathleen" /> I know Kathleen H Warner (Lyrah)</label>
+          <label class="option"><input type="checkbox" name="opt" value="know-kathleen" /> I know Kathleen H. Warner (Lyrah)</label>
           <label class="option"><input type="checkbox" name="opt" value="saw-tape" /> I witnessed your sex tape</label>
           <label class="option"><input type="checkbox" name="opt" value="saw-data" /> I witnessed other private data</label>
           <label class="option"><input type="checkbox" name="opt" value="saw-abuse" /> I witnessed the public abuse</label>
-          <label class="option"><input type="checkbox" name="opt" value="saw-damages" /> I witnessed how it broke you</label>
-          <label class="option"><input type="checkbox" name="opt" value="know-how-it-works" /> I know how it works</label>
-          <label class="option"><input type="checkbox" name="opt" value="willing-to-testify" /> I'm willing to testify in court (privately)</label>
-          <label class="option"><input type="checkbox" name="opt" value="me-too" /> I was targeted, too</label>
+          <label class="option"><input type="checkbox" name="opt" value="saw-damages" /> I witnessed how it affected you</label>
+          <label class="option"><input type="checkbox" name="opt" value="know-how-it-works" /> I know how it works - technically.</label>
+          <label class="option"><input type="checkbox" name="opt" value="willing-to-testify" /> I'm willing to testify in court (privately) about the subjects mentioned above</label>
+          <label class="option"><input type="checkbox" name="opt" value="me-too" /> I, or someone I know - was targeted, too</label>
         </fieldset>
         <p id="formError" class="error"></p>
         <button id="submitBtn" type="submit">Submit</button>
@@ -228,6 +290,20 @@
 
       <div id="done" class="thanks hidden">
         <h1>Thank you.</h1>
+
+        <form id="statement" class="hidden">
+          <div class="field">
+            <textarea id="statementText" name="statement" rows="5" placeholder="Write what you know…"></textarea>
+          </div>
+          <p id="recStatus" class="rec-status hidden"></p>
+          <p id="statementError" class="error"></p>
+          <button id="recordBtn" type="button">Press to record</button>
+          <div id="recControls" class="rec-controls hidden">
+            <button id="playBtn" type="button" class="mic-btn">▶ Play</button>
+            <button id="deleteBtn" type="button" class="mic-btn">🗑 Delete</button>
+          </div>
+          <button id="skipBtn" type="button" class="link-btn">Skip</button>
+        </form>
 
         <form id="contact" class="hidden">
           <div class="field">
@@ -242,7 +318,7 @@
           <button id="contactBtn" type="submit">Send</button>
         </form>
 
-        <p id="contactDone" class="hidden" style="color: var(--muted); font-family: ui-sans-serif, system-ui, sans-serif; font-size: 0.95rem; margin-top: 1.5rem;">We're in this together.</p>
+        <p id="contactDone" class="hidden" style="color: var(--muted); font-family: ui-sans-serif, system-ui, sans-serif; font-size: 0.95rem; margin-top: 1.5rem;">How we use our tools matters.</p>
       </div>
     </div>
   </main>
@@ -255,6 +331,16 @@
       var done = document.getElementById("done");
       var formError = document.getElementById("formError");
       var submitBtn = document.getElementById("submitBtn");
+
+      var statement = document.getElementById("statement");
+      var statementText = document.getElementById("statementText");
+      var statementError = document.getElementById("statementError");
+      var recordBtn = document.getElementById("recordBtn");
+      var recStatus = document.getElementById("recStatus");
+      var recControls = document.getElementById("recControls");
+      var playBtn = document.getElementById("playBtn");
+      var deleteBtn = document.getElementById("deleteBtn");
+      var skipBtn = document.getElementById("skipBtn");
 
       var contact = document.getElementById("contact");
       var contactError = document.getElementById("contactError");
@@ -275,17 +361,22 @@
         localStorage.setItem(STATE_KEY, JSON.stringify(state));
       }
 
-      // Reveal the Thank You screen, plus the contact step when testimony was
-      // offered but contact details haven't been captured yet.
+      // Reveal the Thank You screen, then the optional statement step, then the
+      // required name/email step, then the final message.
       function render(state) {
         form.classList.add("hidden");
         done.classList.remove("hidden");
 
-        if (!state.contactDone) {
-          contact.classList.remove("hidden");
-        } else if (state.contactDone) {
+        if (state.contactDone) {
+          statement.classList.add("hidden");
           contact.classList.add("hidden");
           contactDone.classList.remove("hidden");
+        } else if (!state.statementDone) {
+          statement.classList.remove("hidden");
+          contact.classList.add("hidden");
+        } else {
+          statement.classList.add("hidden");
+          contact.classList.remove("hidden");
         }
       }
 
@@ -303,8 +394,8 @@
           .call(form.querySelectorAll('input[name="opt"]:checked'))
           .map(function (el) { return el.value; });
 
-        if (selections.length === 0) {
-          formError.textContent = "Please select at least one option.";
+        if (selections.length < 2) {
+          formError.textContent = "Please select at least two options.";
           return;
         }
 
@@ -327,6 +418,7 @@
               submitted: true,
               id: res.data.id,
               willingToTestify: !!res.data.willingToTestify,
+              statementDone: false,
               contactDone: false,
             };
             saveState(state);
@@ -336,6 +428,168 @@
             submitBtn.disabled = false;
             submitBtn.textContent = "Submit";
             formError.textContent = err.message || "Something went wrong. Please try again.";
+          });
+      });
+
+      function advanceToContact(state) {
+        state.statementDone = true;
+        saveState(state);
+        statement.classList.add("hidden");
+        contact.classList.remove("hidden");
+      }
+
+      // Persist the current text as the submission's single transcript row. Used
+      // as an auto-save after transcription, on Skip, and on Delete (empty text
+      // clears it). The server updates one row, so there are no duplicates.
+      function saveTranscript(id, text) {
+        return fetch("/api/transcription", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: id, text: text }),
+        }).then(function (r) {
+          return r.json().then(function (data) { return { ok: r.ok, data: data }; });
+        });
+      }
+
+      function autoSaveTranscript() {
+        var st = loadState();
+        if (!st || !st.id) return;
+        saveTranscript(st.id, statementText.value.trim()).catch(function () {});
+      }
+
+      // --- Press-and-hold recording → transcribe via ElevenLabs → fill the box ---
+      var mediaRecorder = null;
+      var audioChunks = [];
+      var audioURL = null;
+      var audioEl = null;
+      var holding = false;
+
+      function startRecording() {
+        if (mediaRecorder && mediaRecorder.state === "recording") return;
+        if (!navigator.mediaDevices || !window.MediaRecorder) {
+          statementError.textContent = "Recording isn't supported in this browser.";
+          return;
+        }
+        statementError.textContent = "";
+        navigator.mediaDevices.getUserMedia({ audio: true })
+          .then(function (stream) {
+            audioChunks = [];
+            mediaRecorder = new MediaRecorder(stream);
+            mediaRecorder.addEventListener("dataavailable", function (e) {
+              if (e.data && e.data.size > 0) audioChunks.push(e.data);
+            });
+            mediaRecorder.addEventListener("stop", function () {
+              stream.getTracks().forEach(function (t) { t.stop(); });
+              recordBtn.classList.remove("recording");
+              var blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || "audio/webm" });
+              if (audioURL) URL.revokeObjectURL(audioURL);
+              audioURL = URL.createObjectURL(blob);
+              sendAudio(blob);
+            });
+            mediaRecorder.start();
+            recordBtn.textContent = "● Recording…";
+            recordBtn.classList.add("recording");
+            // If the finger was released before the mic was ready, stop now.
+            if (!holding) stopRecording();
+          })
+          .catch(function () {
+            statementError.textContent = "Microphone access was denied.";
+          });
+      }
+
+      function stopRecording() {
+        if (mediaRecorder && mediaRecorder.state === "recording") {
+          mediaRecorder.stop();
+        }
+      }
+
+      recordBtn.addEventListener("pointerdown", function (e) {
+        e.preventDefault();
+        holding = true;
+        recControls.classList.add("hidden");
+        startRecording();
+      });
+      function release(e) {
+        if (e) e.preventDefault();
+        holding = false;
+        stopRecording();
+      }
+      recordBtn.addEventListener("pointerup", release);
+      recordBtn.addEventListener("pointerleave", release);
+      recordBtn.addEventListener("pointercancel", release);
+
+      function sendAudio(blob) {
+        recordBtn.classList.add("hidden");
+        recStatus.classList.remove("hidden");
+        recStatus.textContent = "Transcribing…";
+        fetch("/api/transcribe", {
+          method: "POST",
+          headers: { "Content-Type": blob.type || "audio/webm" },
+          body: blob,
+        })
+          .then(function (r) {
+            return r.json().then(function (data) { return { ok: r.ok, data: data }; });
+          })
+          .then(function (res) {
+            recStatus.classList.add("hidden");
+            if (!res.ok) {
+              throw new Error((res.data && res.data.error) || "Could not transcribe audio");
+            }
+            var t = (res.data && res.data.text) || "";
+            if (t) {
+              statementText.value = statementText.value
+                ? statementText.value.trim() + " " + t
+                : t;
+              // Capture it immediately, even if they never advance.
+              autoSaveTranscript();
+            }
+            recControls.classList.remove("hidden");
+            recordBtn.textContent = "Press to record";
+            recordBtn.classList.remove("hidden");
+          })
+          .catch(function (err) {
+            recStatus.classList.add("hidden");
+            statementError.textContent = err.message || "Could not transcribe audio.";
+            recordBtn.textContent = "Press to record";
+            recordBtn.classList.remove("hidden");
+          });
+      }
+
+      playBtn.addEventListener("click", function () {
+        if (!audioURL) return;
+        if (!audioEl) audioEl = new Audio();
+        audioEl.src = audioURL;
+        audioEl.play();
+      });
+
+      deleteBtn.addEventListener("click", function () {
+        // Start over: drop the recording and the transcript it produced.
+        if (audioEl) audioEl.pause();
+        if (audioURL) { URL.revokeObjectURL(audioURL); audioURL = null; }
+        audioChunks = [];
+        statementText.value = "";
+        recControls.classList.add("hidden");
+        statementError.textContent = "";
+        // Remove the auto-saved row too, so nothing stale is left behind.
+        autoSaveTranscript();
+      });
+
+      skipBtn.addEventListener("click", function () {
+        var state = loadState();
+        if (!state || !state.id) {
+          statementError.textContent = "Your session expired. Please reload.";
+          return;
+        }
+        // Sync the latest text (updates the auto-saved row) before advancing.
+        saveTranscript(state.id, statementText.value.trim())
+          .then(function (res) {
+            if (!res.ok) {
+              throw new Error((res.data && res.data.error) || "Could not save your message");
+            }
+            advanceToContact(state);
+          })
+          .catch(function (err) {
+            statementError.textContent = err.message || "Something went wrong. Please try again.";
           });
       });
 

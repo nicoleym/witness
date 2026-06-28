@@ -5,6 +5,8 @@
   "type": "module",
   "description": "Witness intake form",
   "dependencies": {
+    "@elevenlabs/elevenlabs-js": "^2.54.0",
+    "@elevenlabs/react": "^1.9.0",
     "@supabase/supabase-js": "^2.45.0"
   }
 }

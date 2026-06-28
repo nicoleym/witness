@@ -12,8 +12,8 @@ export default async function handler(req, res) {
 
     // Keep only known option values — ignore anything unexpected.
     const clean = selections.filter((s) => VALID_OPTIONS.includes(s));
-    if (clean.length === 0) {
-      return res.status(400).json({ error: "No valid selections" });
+    if (clean.length < 2) {
+      return res.status(400).json({ error: "Please select at least two options" });
     }
 
     const willingToTestify = clean.includes("willing-to-testify");
