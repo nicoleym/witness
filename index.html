@@ -141,6 +141,8 @@
     button:hover { opacity: 0.9; }
     button:disabled { opacity: 0.5; cursor: default; }
 
+    #submitBtn { margin-top: 0; }
+
     .thanks {
       text-align: center;
       padding: 1.5rem 0 0.5rem;
@@ -199,6 +201,15 @@
       min-height: 120px;
     }
 
+    /* On the statement step, anchor the text field flush to the top of the
+       parent container (cancels the .thanks 1.5rem top padding). */
+    #statement { margin-top: -1.5rem; }
+    #statement .field { margin-top: 0; }
+    /* Push Skip down, but trim the textarea by the same amount so the
+       overall container height stays the same. */
+    #statementText { min-height: 96px; }
+    #skipBtn { margin-top: 2.25rem; }
+
     .mic-btn {
       width: auto;
       margin: 0.6rem 0 0;
@@ -238,14 +249,44 @@
       margin: 0.75rem 0 0;
     }
 
+    .btn-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+      margin-top: 1.5rem;
+    }
+
+    .btn-row #recordBtn {
+      width: auto;
+      min-width: 200px;
+      height: 3.25rem;
+      margin: 0;
+      padding: 0 1.5rem;
+      flex: 0 1 auto;
+    }
+
     .rec-controls {
       display: flex;
       gap: 0.6rem;
-      justify-content: center;
-      margin-top: 0.9rem;
     }
 
-    .rec-controls .mic-btn { margin: 0; }
+    .circle-btn {
+      flex: 0 0 auto;
+      width: 3.25rem;
+      height: 3.25rem;
+      margin: 0;
+      padding: 0;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .circle-btn svg { width: 1.3rem; height: 1.3rem; display: block; }
+
+    .circle-btn.play { background: #d9534f; color: #fff; }
+    .circle-btn.delete { background: #fff; color: #000; }
 
     .error {
       color: #f08a8a;
@@ -253,6 +294,15 @@
       font-size: 0.85rem;
       margin: 0.75rem 0 0;
       min-height: 1.1em;
+    }
+
+    .help {
+      color: var(--muted);
+      font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+      font-size: 0.9rem;
+      line-height: 1.45;
+      margin: 1rem 0;
+      text-align: center;
     }
 
     .testify-intro {
@@ -284,12 +334,13 @@
           <label class="option"><input type="checkbox" name="opt" value="willing-to-testify" /> I'm willing to testify in court (privately) about the subjects mentioned above</label>
           <label class="option"><input type="checkbox" name="opt" value="me-too" /> I, or someone I know - was targeted, too</label>
         </fieldset>
+        <p class="help"><em>Thank you for doing the right thing.</em></p>
         <p id="formError" class="error"></p>
         <button id="submitBtn" type="submit">Submit</button>
       </form>
 
       <div id="done" class="thanks hidden">
-        <h1>Thank you.</h1>
+        <h1 id="doneHeading" class="hidden">Thank you.</h1>
 
         <form id="statement" class="hidden">
           <div class="field">
@@ -297,10 +348,16 @@
           </div>
           <p id="recStatus" class="rec-status hidden"></p>
           <p id="statementError" class="error"></p>
-          <button id="recordBtn" type="button">Press to record</button>
-          <div id="recControls" class="rec-controls hidden">
-            <button id="playBtn" type="button" class="mic-btn">▶ Play</button>
-            <button id="deleteBtn" type="button" class="mic-btn">🗑 Delete</button>
+          <div class="btn-row">
+            <div id="recControls" class="rec-controls hidden">
+              <button id="playBtn" type="button" class="circle-btn play" aria-label="Play recording">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
+              </button>
+              <button id="deleteBtn" type="button" class="circle-btn delete" aria-label="Delete recording">
+                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+              </button>
+            </div>
+            <button id="recordBtn" type="button" data-mode="record">Press to record</button>
           </div>
           <button id="skipBtn" type="button" class="link-btn">Skip</button>
         </form>
@@ -329,6 +386,7 @@
 
       var form = document.getElementById("intake");
       var done = document.getElementById("done");
+      var doneHeading = document.getElementById("doneHeading");
       var formError = document.getElementById("formError");
       var submitBtn = document.getElementById("submitBtn");
 
@@ -368,6 +426,7 @@
         done.classList.remove("hidden");
 
         if (state.contactDone) {
+          doneHeading.classList.remove("hidden");
           statement.classList.add("hidden");
           contact.classList.add("hidden");
           contactDone.classList.remove("hidden");
@@ -375,6 +434,7 @@
           statement.classList.remove("hidden");
           contact.classList.add("hidden");
         } else {
+          doneHeading.classList.remove("hidden");
           statement.classList.add("hidden");
           contact.classList.remove("hidden");
         }
@@ -434,6 +494,7 @@
       function advanceToContact(state) {
         state.statementDone = true;
         saveState(state);
+        doneHeading.classList.remove("hidden");
         statement.classList.add("hidden");
         contact.classList.remove("hidden");
       }
@@ -487,7 +548,7 @@
               sendAudio(blob);
             });
             mediaRecorder.start();
-            recordBtn.textContent = "● Recording…";
+            recordBtn.textContent = "Recording";
             recordBtn.classList.add("recording");
             // If the finger was released before the mic was ready, stop now.
             if (!holding) stopRecording();
@@ -504,12 +565,14 @@
       }
 
       recordBtn.addEventListener("pointerdown", function (e) {
+        if (recordBtn.dataset.mode === "submit") return;
         e.preventDefault();
         holding = true;
         recControls.classList.add("hidden");
         startRecording();
       });
       function release(e) {
+        if (recordBtn.dataset.mode === "submit") return;
         if (e) e.preventDefault();
         holding = false;
         stopRecording();
@@ -517,6 +580,40 @@
       recordBtn.addEventListener("pointerup", release);
       recordBtn.addEventListener("pointerleave", release);
       recordBtn.addEventListener("pointercancel", release);
+
+      // The primary button is driven purely by whether the box has text: any
+      // content (typed or transcribed) makes it a Submit button; an empty box
+      // returns it to the press-and-hold record affordance.
+      statementText.addEventListener("input", function () {
+        var hasText = !!statementText.value.trim();
+        recordBtn.textContent = hasText ? "Submit" : "Press to record";
+        recordBtn.dataset.mode = hasText ? "submit" : "record";
+      });
+
+      // In its final state the primary button is a real Submit: save the
+      // transcript and advance, exactly like Skip but as the affirmative action.
+      recordBtn.addEventListener("click", function () {
+        if (recordBtn.dataset.mode !== "submit") return;
+        var state = loadState();
+        if (!state || !state.id) {
+          statementError.textContent = "Your session expired. Please reload.";
+          return;
+        }
+        recordBtn.disabled = true;
+        recordBtn.textContent = "Submitting…";
+        saveTranscript(state.id, statementText.value.trim())
+          .then(function (res) {
+            if (!res.ok) {
+              throw new Error((res.data && res.data.error) || "Could not save your message");
+            }
+            advanceToContact(state);
+          })
+          .catch(function (err) {
+            recordBtn.disabled = false;
+            recordBtn.textContent = "Submit";
+            statementError.textContent = err.message || "Something went wrong. Please try again.";
+          });
+      });
 
       function sendAudio(blob) {
         recordBtn.classList.add("hidden");
@@ -544,13 +641,15 @@
               autoSaveTranscript();
             }
             recControls.classList.remove("hidden");
-            recordBtn.textContent = "Press to record";
+            recordBtn.textContent = "Submit";
+            recordBtn.dataset.mode = "submit";
             recordBtn.classList.remove("hidden");
           })
           .catch(function (err) {
             recStatus.classList.add("hidden");
             statementError.textContent = err.message || "Could not transcribe audio.";
             recordBtn.textContent = "Press to record";
+            recordBtn.dataset.mode = "record";
             recordBtn.classList.remove("hidden");
           });
       }
@@ -569,6 +668,8 @@
         audioChunks = [];
         statementText.value = "";
         recControls.classList.add("hidden");
+        recordBtn.textContent = "Press to record";
+        recordBtn.dataset.mode = "record";
         statementError.textContent = "";
         // Remove the auto-saved row too, so nothing stale is left behind.
         autoSaveTranscript();
@@ -632,6 +733,7 @@
             state.contactDone = true;
             saveState(state);
             contact.classList.add("hidden");
+            doneHeading.classList.remove("hidden");
             contactDone.classList.remove("hidden");
           })
           .catch(function (err) {
