@@ -1,5 +1,6 @@
-// Proxies a short audio clip to ElevenLabs Speech-to-Text and returns the
-// transcript. The API key stays server-side and is never exposed to the browser.
+import { verifyToken } from "./_lib/token.js";
+import { checkOrigin } from "./_lib/origin.js";
+import { rateLimit, tooMany } from "./_lib/ratelimit.js";
 
 const MAX_BYTES = 25 * 1024 * 1024; // ~25MB — plenty for a spoken paragraph.
 
@@ -11,6 +12,18 @@ export default async function handler(req, res) {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed" });
   }
+
+  if (!checkOrigin(req)) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+
+  const claim = verifyToken(req.headers["x-witness-token"] || "");
+  if (!claim) {
+    return res.status(401).json({ error: "Your session expired. Please reload." });
+  }
+
+  const limit = await rateLimit(req, "transcribe", 10, 3600);
+  if (!limit.allowed) return tooMany(res, limit.retryAfter);
 
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) {

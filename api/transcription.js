@@ -1,4 +1,7 @@
 import { getSupabase } from "./_supabase.js";
+import { verifyToken } from "./_lib/token.js";
+import { checkOrigin } from "./_lib/origin.js";
+import { rateLimit, tooMany } from "./_lib/ratelimit.js";
 
 const MAX_LEN = 5000;
 
@@ -12,14 +15,22 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  if (!checkOrigin(req)) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+
+  const limit = await rateLimit(req, "transcription", 30, 600);
+  if (!limit.allowed) return tooMany(res, limit.retryAfter);
+
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
-    const id = typeof body.id === "string" ? body.id.trim() : "";
+    const claim = verifyToken(typeof body.token === "string" ? body.token : "");
+    if (!claim) {
+      return res.status(401).json({ error: "Your session expired. Please reload." });
+    }
+    const id = claim.id;
     const text = typeof body.text === "string" ? body.text.trim() : "";
 
-    if (!id) {
-      return res.status(400).json({ error: "Missing submission id" });
-    }
     if (text.length > MAX_LEN) {
       return res.status(400).json({ error: "Your message is too long" });
     }

@@ -1,10 +1,20 @@
 import { getSupabase, VALID_OPTIONS } from "./_supabase.js";
+import { signToken } from "./_lib/token.js";
+import { checkOrigin } from "./_lib/origin.js";
+import { rateLimit, tooMany } from "./_lib/ratelimit.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed" });
   }
+
+  if (!checkOrigin(req)) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+
+  const limit = await rateLimit(req, "submit", 5, 600);
+  if (!limit.allowed) return tooMany(res, limit.retryAfter);
 
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
@@ -36,7 +46,7 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Could not save submission" });
     }
 
-    return res.status(200).json({ id: data.id, willingToTestify });
+    return res.status(200).json({ token: signToken(data.id), willingToTestify });
   } catch (err) {
     console.error("submit handler error:", err);
     return res.status(500).json({ error: "Server error" });

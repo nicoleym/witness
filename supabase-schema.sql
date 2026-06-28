@@ -36,3 +36,18 @@ alter table public.submissions enable row level security;
 -- Helpful index for reviewing who is willing to testify.
 create index if not exists submissions_testify_idx
   on public.submissions (willing_to_testify, created_at desc);
+
+-- One transcript row per submission (the written/voice statement). Written
+-- through the serverless function with the service-role key; locked to the
+-- public/anon API via RLS with no policies.
+create table if not exists public.transcriptions (
+  id             uuid primary key default gen_random_uuid(),
+  submission_id  uuid not null references public.submissions (id) on delete cascade,
+  text           text,
+  created_at     timestamptz not null default now()
+);
+
+alter table public.transcriptions enable row level security;
+
+create index if not exists transcriptions_submission_idx
+  on public.transcriptions (submission_id);
