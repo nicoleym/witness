@@ -29,7 +29,8 @@
   var reduced =
     window.matchMedia &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (!fine || reduced) return;
+  if (reduced) return;
+  var touch = !fine;   // no pointer to chase — the moth wanders & spooks on tap
 
   // ---- Canonical layout (the 675x565 artwork frame) ----------------------
   // key, file, left, top, width, height, transform-origin (body hinge), z.
@@ -69,6 +70,12 @@
   var TAKEOFF_REST = 0.3;
   var BRAKE_TAU = 0.12, BRAKE_K = 0.0016, BRAKE_MAX = 0.22; // wing air-brake flare
   var TWITCH_CHANCE = 0.006, TWITCH_DECAY = 0.18, TWITCH_AMP = 10;
+
+  // ---- Mobile (no pointer to chase) --------------------------------------
+  var WANDER_GAP = [3.5, 8.0];   // s perched before it relocates itself
+  var WANDER_MARGIN = 90;        // keep wander targets clear of the screen edges
+  var SPOOK_RADIUS = 90;         // a tap within this many px of the skull spooks it
+  var FLEE_DIST = [160, 280];    // how far it bolts from the tap
 
   // Lilt: a perched moth never sits perfectly upright — a slow, irregular
   // resting tilt that drifts a few degrees either way.
@@ -126,7 +133,7 @@
   var liltClock = 0;
   var gKind = "", gActive = false, gProg = 0, gDur = 1, gEnv = 0, gEnvR = 0, gGap = GEST_GAP[0];
   var lastGest = "";
-  var seen = false, last = 0;
+  var seen = false, last = 0, wanderCd = 0;
 
   function fireBurst(strength) {
     if (burstCd > 0) return;
@@ -134,15 +141,45 @@
     burstCd = BURST_COOLDOWN;
   }
 
-  window.addEventListener("pointermove", function (e) {
-    px = e.clientX; py = e.clientY;
-    if (!seen) { seen = true; sx = px; sy = py; }
-    if (rest > TAKEOFF_REST) fireBurst(1);   // wake & take off with a clap
+  // Pick a fresh on-screen perch (mobile), clamped clear of the edges.
+  function pickWander() {
+    var w = window.innerWidth, h = window.innerHeight;
+    px = rand(WANDER_MARGIN, Math.max(WANDER_MARGIN, w - WANDER_MARGIN));
+    py = rand(WANDER_MARGIN, Math.max(WANDER_MARGIN, h - WANDER_MARGIN));
     idleTime = 0;
-  }, { passive: true });
-  window.addEventListener("pointerdown", function () { fireBurst(0.85); }, { passive: true });
-  window.addEventListener("pointerleave", function () { root.classList.add("is-out"); });
-  window.addEventListener("pointerenter", function () { root.classList.remove("is-out"); });
+  }
+
+  if (fine) {
+    // Desktop: the moth IS the cursor and chases the pointer. (unchanged)
+    window.addEventListener("pointermove", function (e) {
+      px = e.clientX; py = e.clientY;
+      if (!seen) { seen = true; sx = px; sy = py; }
+      if (rest > TAKEOFF_REST) fireBurst(1);   // wake & take off with a clap
+      idleTime = 0;
+    }, { passive: true });
+    window.addEventListener("pointerdown", function () { fireBurst(0.85); }, { passive: true });
+    window.addEventListener("pointerleave", function () { root.classList.add("is-out"); });
+    window.addEventListener("pointerenter", function () { root.classList.remove("is-out"); });
+  } else {
+    // Touch: no pointer. The moth lives on the page — wanders on its own and
+    // bolts only when you tap on or near it (taps elsewhere pass through to the
+    // page, so form controls keep working).
+    seen = true;
+    pickWander();                                 // fly in to a first perch
+    wanderCd = rand(WANDER_GAP[0], WANDER_GAP[1]);
+    window.addEventListener("touchstart", function (e) {
+      var t = e.touches && e.touches[0]; if (!t) return;
+      if (Math.hypot(t.clientX - sx, t.clientY - sy) > SPOOK_RADIUS) return; // far tap: ignore
+      var w = window.innerWidth, h = window.innerHeight;
+      var dx = sx - t.clientX, dy = sy - t.clientY, d = Math.hypot(dx, dy) || 1;
+      var dist = rand(FLEE_DIST[0], FLEE_DIST[1]);  // flee directly away from the finger
+      px = clamp(sx + dx / d * dist, WANDER_MARGIN, Math.max(WANDER_MARGIN, w - WANDER_MARGIN));
+      py = clamp(sy + dy / d * dist, WANDER_MARGIN, Math.max(WANDER_MARGIN, h - WANDER_MARGIN));
+      fireBurst(1);
+      idleTime = 0;
+      wanderCd = rand(WANDER_GAP[0], WANDER_GAP[1]);
+    }, { passive: true });
+  }
 
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
   function alpha(dt, tau) { return 1 - Math.exp(-dt / tau); }
@@ -192,6 +229,16 @@
 
     // --- Ambient idle gestures: occasional stretch / slick-back ------------
     var settled = speed < 40 && burst <= 0;
+
+    // --- Mobile: once perched, relocate to a new spot on its own -----------
+    if (touch && settled && rest > 0.4) {
+      wanderCd -= dt;
+      if (wanderCd <= 0) {
+        pickWander(); fireBurst(0.9);            // clap-and-fling takeoff
+        wanderCd = rand(WANDER_GAP[0], WANDER_GAP[1]);
+      }
+    }
+
     if (gActive) {
       gProg += dt / gDur;
       if (gProg >= 1 || !settled) { gActive = false; gGap = rand(GEST_GAP[0], GEST_GAP[1]); }
