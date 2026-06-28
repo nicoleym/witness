@@ -72,10 +72,11 @@
   var TWITCH_CHANCE = 0.006, TWITCH_DECAY = 0.18, TWITCH_AMP = 10;
 
   // ---- Mobile (no pointer to chase) --------------------------------------
-  var WANDER_GAP = [3.5, 8.0];   // s perched before it relocates itself
-  var WANDER_MARGIN = 90;        // keep wander targets clear of the screen edges
-  var SPOOK_RADIUS = 90;         // a tap within this many px of the skull spooks it
-  var FLEE_DIST = [160, 280];    // how far it bolts from the tap
+  // On the final screen only, the moth flies in and then roams freely, landing
+  // in varied random spots anywhere on the page (never fixed corners).
+  var HOP_GAP = [1.6, 3.5];      // s perched before it flits to a new spot
+  var SCREEN_MARGIN = 70;        // keep the whole moth on-screen
+  var OFFSCREEN_MARGIN = 180;    // where it first enters from
 
   // Lilt: a perched moth never sits perfectly upright — a slow, irregular
   // resting tilt that drifts a few degrees either way.
@@ -115,7 +116,11 @@
     els[p[0]] = img;
     root.appendChild(img);
   });
-  function ready() { if (--pending <= 0) root.classList.add("is-ready"); }
+  var imgsReady = false;
+  function ready() { if (--pending <= 0) { imgsReady = true; maybeReveal(); } }
+  // Desktop reveals as soon as the art loads; touch reveals only once a tap has
+  // first summoned the moth (it lives off-screen until then).
+  function maybeReveal() { if (imgsReady && (fine || engaged)) root.classList.add("is-ready"); }
   function mount() {
     document.body.appendChild(root);
     document.documentElement.classList.add("moth-cursor-active");
@@ -133,7 +138,8 @@
   var liltClock = 0;
   var gKind = "", gActive = false, gProg = 0, gDur = 1, gEnv = 0, gEnvR = 0, gGap = GEST_GAP[0];
   var lastGest = "";
-  var seen = false, last = 0, wanderCd = 0;
+  var seen = false, last = 0;
+  var engaged = false, running = false, hopTimer = 0;
 
   function fireBurst(strength) {
     if (burstCd > 0) return;
@@ -141,11 +147,22 @@
     burstCd = BURST_COOLDOWN;
   }
 
-  // Pick a fresh on-screen perch (mobile), clamped clear of the edges.
-  function pickWander() {
+  // A point just beyond a random screen edge — where the moth first enters from.
+  function offscreen() {
+    var w = window.innerWidth, h = window.innerHeight, m = OFFSCREEN_MARGIN;
+    switch ((Math.random() * 4) | 0) {
+      case 0:  return [rand(0, w), -m];      // top
+      case 1:  return [w + m, rand(0, h)];   // right
+      case 2:  return [rand(0, w), h + m];   // bottom
+      default: return [-m, rand(0, h)];      // left
+    }
+  }
+  // A fresh random target anywhere on-screen — varied landings, never a corner.
+  // Module-scope so both the tap handler and the loop can retarget the moth.
+  function randTarget() {
     var w = window.innerWidth, h = window.innerHeight;
-    px = rand(WANDER_MARGIN, Math.max(WANDER_MARGIN, w - WANDER_MARGIN));
-    py = rand(WANDER_MARGIN, Math.max(WANDER_MARGIN, h - WANDER_MARGIN));
+    px = rand(SCREEN_MARGIN, Math.max(SCREEN_MARGIN, w - SCREEN_MARGIN));
+    py = rand(SCREEN_MARGIN, Math.max(SCREEN_MARGIN, h - SCREEN_MARGIN));
     idleTime = 0;
   }
 
@@ -161,24 +178,42 @@
     window.addEventListener("pointerleave", function () { root.classList.add("is-out"); });
     window.addEventListener("pointerenter", function () { root.classList.remove("is-out"); });
   } else {
-    // Touch: no pointer. The moth lives on the page — wanders on its own and
-    // bolts only when you tap on or near it (taps elsewhere pass through to the
-    // page, so form controls keep working).
-    seen = true;
-    pickWander();                                 // fly in to a first perch
-    wanderCd = rand(WANDER_GAP[0], WANDER_GAP[1]);
+    // Touch: the moth is removed from the whole flow EXCEPT the very last screen
+    // — the post-submission thank-you (#contactDone), which has no inputs. There
+    // it flies in from off-screen and then roams freely, perching and flitting to
+    // new random spots anywhere on the page. A tap sends it to the tapped spot.
+    // It's pointer-events:none, so taps always pass straight through regardless.
+    var contactDone = document.getElementById("contactDone");
+    function isLastStep() { return contactDone && !contactDone.classList.contains("hidden"); }
+
+    function summon() {
+      if (engaged || !isLastStep()) return;
+      var p = offscreen();
+      sx = p[0]; sy = p[1]; vx = 0; vy = 0;   // enter from off-screen
+      engaged = true; seen = true;
+      maybeReveal();
+      randTarget(); fireBurst(1);              // fly in to a first random spot
+      hopTimer = rand(HOP_GAP[0], HOP_GAP[1]);
+      if (!running) { running = true; last = 0; requestAnimationFrame(frame); }
+    }
+
     window.addEventListener("touchstart", function (e) {
+      if (!isLastStep()) return;
       var t = e.touches && e.touches[0]; if (!t) return;
-      if (Math.hypot(t.clientX - sx, t.clientY - sy) > SPOOK_RADIUS) return; // far tap: ignore
-      var w = window.innerWidth, h = window.innerHeight;
-      var dx = sx - t.clientX, dy = sy - t.clientY, d = Math.hypot(dx, dy) || 1;
-      var dist = rand(FLEE_DIST[0], FLEE_DIST[1]);  // flee directly away from the finger
-      px = clamp(sx + dx / d * dist, WANDER_MARGIN, Math.max(WANDER_MARGIN, w - WANDER_MARGIN));
-      py = clamp(sy + dy / d * dist, WANDER_MARGIN, Math.max(WANDER_MARGIN, h - WANDER_MARGIN));
+      if (!engaged) summon();
+      px = t.clientX; py = t.clientY;          // fly to wherever they tapped
       fireBurst(1);
+      hopTimer = rand(HOP_GAP[0], HOP_GAP[1]);
       idleTime = 0;
-      wanderCd = rand(WANDER_GAP[0], WANDER_GAP[1]);
     }, { passive: true });
+
+    // Appear as soon as the final screen is shown (and if we load straight into it).
+    if (contactDone) {
+      new MutationObserver(summon).observe(contactDone, {
+        attributes: true, attributeFilter: ["class"]
+      });
+    }
+    summon();
   }
 
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
@@ -205,7 +240,7 @@
   }
 
   function frame(now) {
-    requestAnimationFrame(frame);
+    if (fine || running) requestAnimationFrame(frame);  // touch loop stops when the moth is gone
     if (!last) { last = now; return; }
     var dt = Math.min(0.04, (now - last) / 1000);
     last = now;
@@ -230,12 +265,12 @@
     // --- Ambient idle gestures: occasional stretch / slick-back ------------
     var settled = speed < 40 && burst <= 0;
 
-    // --- Mobile: once perched, relocate to a new spot on its own -----------
-    if (touch && settled && rest > 0.4) {
-      wanderCd -= dt;
-      if (wanderCd <= 0) {
-        pickWander(); fireBurst(0.9);            // clap-and-fling takeoff
-        wanderCd = rand(WANDER_GAP[0], WANDER_GAP[1]);
+    // --- Mobile: roam freely — flit to a new random spot after each perch ---
+    if (touch && engaged && settled && rest > 0.4) {
+      hopTimer -= dt;
+      if (hopTimer <= 0) {
+        randTarget(); fireBurst(0.9);            // clap-and-fling to a new spot
+        hopTimer = rand(HOP_GAP[0], HOP_GAP[1]);
       }
     }
 
@@ -400,5 +435,5 @@
 
     if (window.__moth) window.__moth(speed, err, I, roll, { rest: rest, burst: burst, brake: brake });
   }
-  requestAnimationFrame(frame);
+  if (fine) requestAnimationFrame(frame);   // touch starts the loop on activation
 })();
