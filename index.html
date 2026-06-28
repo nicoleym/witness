@@ -228,10 +228,8 @@
 
       <div id="done" class="thanks hidden">
         <h1>Thank you.</h1>
-        <p>Your response has been recorded.</p>
 
         <form id="contact" class="hidden">
-          <p class="testify-intro">You indicated you're willing to testify privately. Please leave your name and email so we can talk offline.</p>
           <div class="field">
             <label for="fullName">Full name</label>
             <input type="text" id="fullName" name="fullName" autocomplete="name" required />
@@ -244,7 +242,7 @@
           <button id="contactBtn" type="submit">Send</button>
         </form>
 
-        <p id="contactDone" class="hidden" style="color: var(--muted); font-family: ui-sans-serif, system-ui, sans-serif; font-size: 0.95rem; margin-top: 1.5rem;">Thank you. Really.</p>
+        <p id="contactDone" class="hidden" style="color: var(--muted); font-family: ui-sans-serif, system-ui, sans-serif; font-size: 0.95rem; margin-top: 1.5rem;">We're in this together.</p>
       </div>
     </div>
   </main>
@@ -283,7 +281,7 @@
         form.classList.add("hidden");
         done.classList.remove("hidden");
 
-        if (state.willingToTestify && !state.contactDone) {
+        if (!state.contactDone) {
           contact.classList.remove("hidden");
         } else if (state.contactDone) {
           contact.classList.add("hidden");

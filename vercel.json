@@ -1,0 +1,16 @@
+{
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "everybodywitness.com" }],
+      "destination": "https://everybodywitness.org/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "www.everybodywitness.com" }],
+      "destination": "https://everybodywitness.org/:path*",
+      "permanent": true
+    }
+  ]
+}
