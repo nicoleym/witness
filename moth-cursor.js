@@ -84,8 +84,10 @@
   // Coattails: a far narrower slick — wings hang nearly straight down and the
   // whole moth collapses to a slim vertical column, wings trailing like tails.
   // The right side lags the left a touch so the two tails don't drop in lockstep.
-  var COAT_DUR = 0.55, CO_UP = 95, CO_DN = 86, CO_SXU = 0.23, CO_SXL = 0.27;
+  var COAT_DUR = 0.7, CO_UP = 95, CO_DN = 86, CO_SXU = 0.23, CO_SXL = 0.27;
   var COAT_STAGGER = 0.12;            // fraction of progress the right side trails
+  // A very gentle tremor in the tails while they hang down (held tension).
+  var COAT_SHAKE_HZ = 13, COAT_SHAKE_AMP = 1.3;
 
   // ---- DOM ---------------------------------------------------------------
   var root = document.createElement("div");
@@ -118,7 +120,7 @@
   var px = window.innerWidth / 2, py = window.innerHeight / 2;
   var sx = px, sy = py, vx = 0, vy = 0;
   var exertion = EXERT_FLOOR, roll = 0, pitch = 1;
-  var phase = 0, swayPhase = 0, clapPhase = 0;
+  var phase = 0, swayPhase = 0, clapPhase = 0, shakePhase = 0;
   var idleTime = 0, rest = 0, burst = 0, burstCd = 0;
   var brake = 0, prevSpeed = 0, prevSpeed2 = 0, twitch = 0, twitchDir = 1;
   var liltClock = 0;
@@ -152,10 +154,10 @@
   function gestureEnv(kind, p) {
     p = p < 0 ? 0 : p > 1 ? 1 : p;
     if (kind === "coat") {
-      // Quick & sharp: snap in, a hair of hold, snap back out.
-      if (p < 0.3) { var c = p / 0.3; return c * c * (3 - 2 * c); }
-      if (p < 0.45) return 1;
-      var e = (1 - p) / 0.55; return e * e * (3 - 2 * e);
+      // Sharp snap in, a brief held dwell (room for the tremor), sharp snap out.
+      if (p < 0.24) { var c = p / 0.24; return c * c * (3 - 2 * c); }
+      if (p < 0.62) return 1;
+      var e = (1 - p) / 0.38; return e * e * (3 - 2 * e);
     }
     if (kind === "slick") {
       if (p < 0.22) { var u = p / 0.22; return u * u * (3 - 2 * u); }
@@ -239,6 +241,7 @@
     phase += 2 * Math.PI * hz * dt;
     swayPhase += 2 * Math.PI * (0.45 + 0.5 * I) * dt;
     if (burst > 0) clapPhase += 2 * Math.PI * CLAP_HZ * dt; else clapPhase = 0;
+    shakePhase += 2 * Math.PI * COAT_SHAKE_HZ * dt;
     var wob = Math.sin(swayPhase * 0.37) * 0.12 + Math.sin(swayPhase * 0.91) * 0.06;
 
     // --- Wing pose: blend flight -> fold(rest) -> clap(burst), + brake -----
@@ -273,6 +276,15 @@
       rLL = lerp(rLL, gDn, gEnv); rLR = lerp(rLR, gDn, gEnvR);
       xUL = lerp(xUL, gSxU, gEnv); xUR = lerp(xUR, gSxU, gEnvR);
       xLL = lerp(xLL, gSxL, gEnv); xLR = lerp(xLR, gSxL, gEnvR);
+
+      // Coattails held down: a very gentle tremor, gated by how far each tail
+      // has dropped (so it fades in/out with the pose) and offset L vs R.
+      if (gKind === "coat") {
+        var q = (Math.sin(shakePhase) + 0.4 * Math.sin(shakePhase * 1.7)) * COAT_SHAKE_AMP;
+        var qR = (Math.sin(shakePhase + 0.7) + 0.4 * Math.sin(shakePhase * 1.7 + 0.7)) * COAT_SHAKE_AMP;
+        rUL += q * gEnv; rLL += q * 0.8 * gEnv;
+        rUR += qR * gEnvR; rLR += qR * 0.8 * gEnvR;
+      }
     }
 
     // Clap-flap overrides everything while it fires.
