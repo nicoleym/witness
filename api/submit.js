@@ -29,7 +29,7 @@ export default async function handler(req, res) {
     const willingToTestify = clean.includes("willing-to-testify");
 
     // One column per option (hyphens → underscores), 'YES' when checked.
-    const row = { user_agent: req.headers["user-agent"] || null };
+    const row = {};
     for (const opt of VALID_OPTIONS) {
       row[opt.replace(/-/g, "_")] = clean.includes(opt) ? "YES" : null;
     }

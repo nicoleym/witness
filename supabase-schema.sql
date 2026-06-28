@@ -24,8 +24,7 @@ create table if not exists public.submissions (
   know_how_it_works   text,
 
   full_name           text,
-  email               text,
-  user_agent          text
+  email               text
 );
 
 -- Enable Row Level Security. The site writes through a serverless function using
