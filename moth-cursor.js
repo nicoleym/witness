@@ -21,6 +21,11 @@
      • brake      — hard deceleration: wings flare wide & forward to air-brake.
      • twitch     — perched: occasional asymmetric antenna flick (sensing the air).
    Attenborough x Nat Geo x a little computer magic.
+
+   CREDIT: The original Death's-head moth illustration this cursor is built from
+   was created by Petrenko Denys. The artwork (moth/Image.png and the
+   moth/Deconstructed/ pieces) is his; the geometry and motion here are a
+   derivative reconstruction of that original work.
    ============================================================================ */
 (function () {
   "use strict";
