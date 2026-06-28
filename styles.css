@@ -303,6 +303,15 @@ button:disabled { opacity: 0.5; cursor: default; }
 }
 .error.below-card:empty { padding-top: 0; }
 
+/* Intake error sits below the Submit button: centered both axes, 8px all round. */
+#formError {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 8px;
+}
+
 .help {
   color: var(--muted);
   font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
