@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { getSupabase } from "../_supabase.js";
 
 export function clientIp(req) {
@@ -9,10 +10,20 @@ export function clientIp(req) {
   return "unknown";
 }
 
+// Keyed hash of the IP so the rate_limits table never stores a real address.
+// SIGNING_SECRET is the key, so the digest isn't reversible via a rainbow table
+// of the (small) IPv4 space. Truncated to 32 hex chars — ample to avoid
+// collisions across distinct visitors.
+export function hashIp(ip) {
+  const secret = process.env.SIGNING_SECRET;
+  if (!secret) throw new Error("SIGNING_SECRET is not configured");
+  return crypto.createHmac("sha256", secret).update(String(ip)).digest("hex").slice(0, 32);
+}
+
 export async function rateLimit(req, name, max, windowSeconds, opts) {
   const failOpen = !opts || opts.failOpen !== false;
-  const bucket = name + ":" + clientIp(req);
   try {
+    const bucket = name + ":" + hashIp(clientIp(req));
     const supabase = getSupabase();
     const { data, error } = await supabase.rpc("rate_limit_hit", {
       p_bucket: bucket,
