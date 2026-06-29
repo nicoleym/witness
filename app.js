@@ -236,7 +236,7 @@
         return r.json().then(function (data) { return { ok: r.ok, data: data }; });
       })
       .then(function (res) {
-        statementText.placeholder = "Write what you know…";
+        statementText.placeholder = "Start from the beginning…";
         if (!res.ok) {
           throw new Error((res.data && res.data.error) || "Could not transcribe audio");
         }
@@ -253,7 +253,7 @@
         recordBtn.classList.remove("hidden");
       })
       .catch(function (err) {
-        statementText.placeholder = "Write what you know…";
+        statementText.placeholder = "Start from the beginning…";
         statementError.textContent = err.message || "Could not transcribe audio.";
         recordBtn.textContent = "Press to record";
         recordBtn.dataset.mode = "record";
